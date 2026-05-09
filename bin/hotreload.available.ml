@@ -14,7 +14,7 @@ let ui_replay ~io (nb_past, target_clock, nb_future) =
     if total_events <= 0 then 0
     else
       over [%ui] @@ fun () ->
-      draw [%ui] (fun ~io box ->
+      Ui.Custom.draw [%ui] (fun ~io box ->
           let module Box = Gamelle.Box in
           let size = Box.size box in
           let progress =

@@ -867,39 +867,167 @@ capping its [max].
 Note: reporting a [min] smaller than the child actually needs will cause it
 to be rendered in a box that is too small, resulting in clipping or overflow. *)
 
-  val draw :
-    ui ->
-    ?min_width:float ->
-    ?max_width:float ->
-    ?min_height:float ->
-    ?max_height:float ->
-    ?flex_width:float ->
-    ?flex_height:float ->
-    (io:io -> Box.t -> unit) ->
-    unit
-  (** {ocaml[
-draw [%ui] ?min_width ?max_width ?min_height ?max_height
-  ?flex_width ?flex_height begin fun ~io box ->
-    ...
+  (** {1 Building custom widgets}
+
+      Use [Ui.Custom] to build new interactive widgets. The primitives here are
+      the same ones used to implement {!button}, {!checkbox}, {!slider}, etc.
+
+      A typical non-container widget follows this pattern:
+      {[
+        open Ui.Custom
+
+        module Store = State(struct type t = float end)
+
+        let my_toggle ui (checked : bool) : bool =
+          let anim = Store.find [%ui] 0.0 in
+          on_click ui @@ fun st ->
+          update anim
+            (if st = `pressed then min 1.0 (value anim +. 0.05) else value anim);
+          let checked = if st = `clicked then not checked else checked in
+          draw ui ~min_width:40. ~min_height:20. (fun ~io box ->
+            (* render using checked and (value anim) *)
+            ());
+          checked
+      ]}
+  *)
+
+  module Custom : sig
+    type 'a state
+    (** Persistent per-instance internal state. Use {!get} and {!set} to
+        access it. The concrete representation is hidden. *)
+
+    val value : 'a state -> 'a
+    val update : 'a state -> 'a -> unit
+
+    val draw :
+      ui ->
+      ?min_width:float ->
+      ?max_width:float ->
+      ?min_height:float ->
+      ?max_height:float ->
+      ?flex_width:float ->
+      ?flex_height:float ->
+      (io:io -> Box.t -> unit) ->
+      unit
+    (** The primitive leaf widget. Declares a box with the given layout
+        constraints and calls the drawing function with the allocated [~io]
+        and {!Box.t}.
+
+        All size parameters default to [0.0] except [max_width] and
+        [max_height] which default to [infinity]. A [flex] value of [0.0]
+        means the widget takes exactly its [min] size; a positive value means
+        it competes for extra space proportionally to that value. *)
+
+    val get_io : ui -> io
+    (** Get the current [io]. Needed to read input events such as mouse
+        position inside [on_click] callbacks. *)
+
+    module Layout : sig
+      type t
+      val horizontal : ?gap:float -> t list -> t
+      val vertical : ?gap:float -> t list -> t
+      val over : t list -> t
+      val pad : float -> t -> t
+      val center : t list -> t
+      val vclip : float -> t -> t
+      val hclip : float -> t -> t
+      val reshape : ?width:(constrain -> constrain) -> ?height:(constrain -> constrain) -> t -> t
+    end
+    (** Layout primitives for building container widgets. Pass a
+        [Layout.t list -> Layout.t] function to {!parent} to define how
+        children are arranged. *)
+
+    val parent :
+      ui ->
+      (Layout.t list -> Layout.t) ->
+      (unit -> 'a) ->
+      'a
+    (** Container primitive. [parent ui layout fn] runs [fn] to collect child
+        layout nodes, passes them to [layout], and inserts the result. All
+        built-in layout combinators ([horizontal], [vertical], etc.) are
+        wrappers around this. *)
+
+    val parent1 : ui -> (Layout.t -> Layout.t) -> (unit -> 'a) -> 'a
+    (** Like {!parent} but asserts exactly one child. *)
+
+    val horizontal : ui -> ?gap:float -> (unit -> 'a) -> 'a
+    val vertical : ui -> ?gap:float -> (unit -> 'a) -> 'a
+    val over : ui -> (unit -> 'a) -> 'a
+
+    val vclip : ui -> ?offset:Vec.t -> Box.t -> (unit -> 'a) -> 'a
+    (** Clips content vertically to [box], scrolled by [offset]. Events outside
+        the clip box are suppressed. *)
+
+    val hclip : ui -> ?offset:Vec.t -> Box.t -> (unit -> 'a) -> 'a
+    (** Clips content horizontally to [box], scrolled by [offset]. Events
+        outside the clip box are suppressed. *)
+
+    val on_click : ui -> ([ `normal | `hover | `pressed | `clicked ] -> 'a) -> 'a
+    (** Track hover/press/click state for whatever is rendered inside the
+        callback. Internal button state is managed automatically. *)
+
+    val with_box : ui -> (Box.t -> 'a) -> 'a
+    (** Provides the layout box allocated to the content. Useful when the box
+        is needed for hit-testing or positioning outside of a [draw] call. *)
+
+    val boxed :
+      ?border:Color.t ->
+      ?bg:Color.t ->
+      ?pad:float ->
+      ui ->
+      (unit -> 'a) ->
+      'a
+    (** Wraps content in a bordered rectangle with background fill.
+        Defaults to theme colors and [pad = 10.0]. *)
+
+    val padding : ui -> float -> (unit -> 'a) -> 'a
+    (** Adds uniform padding around the content. *)
+
+    val center : ui -> (unit -> 'a) -> 'a
+    (** Centers the content in the available space. *)
+
+    module type Store = sig
+      type value
+      val find : ui -> value -> value state
+    end
+    (** Module type satisfied by the result of {!State}. Pass as a first-class
+        module to {!with_state}. *)
+
+    module State : functor (V : sig
+      type t
+    end) -> Store with type value = V.t
+    (** [module Store = State(struct type t = my_type end)] creates a
+        persistent store for internal state of type [my_type]. Declare one
+        per internal-state type at module level. *)
+
+    val with_state :
+      (module Store with type value = 'a) ->
+      ui ->
+      'a ->
+      ('a -> 'a) ->
+      'a
+    (** [with_state (module Store) [%ui] default (fun v -> ...)] looks up the
+        persistent state for this call-site, passes the current value [v] to
+        the callback, persists the returned value, and returns it.
+
+        The state type ['a] can combine internal and external parts; the caller
+        is responsible for extracting whichever parts it needs from the result.
+
+        {[
+          open Ui.Custom
+
+          module Store = State(struct type t = int * string end)
+
+          let my_widget ui init_text =
+            let (_, text) =
+              with_state (module Store) [%ui] (0, init_text) @@ fun (cursor, text) ->
+              draw ui ~min_width:30. ~min_height:30. (fun ~io box ->
+                (* render *) ());
+              (cursor + 1, text)
+            in
+            text
+        ]} *)
   end
-]}
-
-The primitive leaf widget. Declares a box with the given layout constraints and
-calls the drawing function with the allocated [~io] and {!Box.t}.
-
-The code [...] should draw the desired inside the [box] its given by the layout.
-
-All size parameters default to [0.0] except [max_width] and [max_height] which
-default to [infinity]. A [flex] value of [0.0] means the widget takes exactly
-its [min] size; a positive value means it competes for extra space
-proportionally to that value.
-
-No clipping is applied: drawing outside [box] is not prevented. If you want
-clipping you can use {!View.clip}.
-
-You can combine this with {!over} to create "reskins" of other widgets.
-
-*)
 
   (**/**)
 

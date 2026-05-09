@@ -52,15 +52,17 @@ let v ui ?(min_height = 100.0) fn =
   with_box ui @@ fun container_box ->
   horizontal ui ~gap:0.0 @@ fun () ->
   let state = State.find ui default in
+  let new_child_height = ref !state.child_height in
   let result =
     with_box ui @@ fun clip_box ->
     vclip ui clip_box ~offset:(Vec.v 0.0 !state.offset) @@ fun () ->
     with_box ui @@ fun child_box ->
+    new_child_height := Box.height child_box;
     padding ui 10.0 @@ fun () ->
-    state := { !state with child_height = Box.height child_box };
     vertical ui fn
   in
-  let offset = vscrollbar ui ~min_height (Box.height container_box) !state in
+  let cur = { !state with child_height = !new_child_height } in
+  let offset = vscrollbar ui ~min_height (Box.height container_box) cur in
   let io = get_io ui in
   let offset =
     if
@@ -69,9 +71,9 @@ let v ui ?(min_height = 100.0) fn =
     then
       max 0.0
         (min
-           (!state.child_height -. Box.height container_box)
+           (cur.child_height -. Box.height container_box)
            (offset +. Event.wheel_delta ~io))
     else offset
   in
-  state := { !state with offset };
+  state := { cur with offset };
   result

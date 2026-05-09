@@ -11,14 +11,14 @@ let padding ui p f = parent1 ui (Layout.pad p) f
 let reshape ui ?width ?height fn = parent1 ui (Layout.reshape ?width ?height) fn
 
 module Boxes = Ui_backend.State (struct
-  type t = Box.t
+  type t = Box.t ref
 end)
 
 let with_box ui f =
   over ui @@ fun () ->
-  let b = Boxes.find ui Box.zero in
-  draw ui (fun ~io:_ box -> b := box);
-  f !b
+  let box_ref = with_state (module Boxes) ui (ref Box.zero) Fun.id in
+  draw ui (fun ~io:_ box -> box_ref := box);
+  f !box_ref
 
 let label ui text =
   let size = Text.size ~io:(get_io ui) text in
@@ -55,21 +55,24 @@ let on_click ui fn =
   let io = get_io ui in
   let mouse = Event.mouse_pos ~io in
   let hover = Event.handle_clip_events ~io true && Box.mem mouse box in
-  let state = Button_state.find ui `normal in
   let st =
-    match !state with
-    | `normal when hover && !focus = None -> `hover
-    | `hover when not hover -> `normal
-    | `hover when Event.is_down ~io `click_left ->
-        focus := Some (Ui_backend.id ui);
-        `pressed
-    | `pressed when Event.is_up ~io:(View.clip_events false io) `click_left ->
-        focus := None;
-        if hover then `clicked else `normal
-    | `clicked -> `normal
-    | other -> other
+    Ui_backend.with_state
+      (module Button_state)
+      ui `normal
+      (fun state ->
+        match state with
+        | `normal when hover && !focus = None -> `hover
+        | `hover when not hover -> `normal
+        | `hover when Event.is_down ~io `click_left ->
+            focus := Some (Ui_backend.id ui);
+            `pressed
+        | `pressed when Event.is_up ~io:(View.clip_events false io) `click_left
+          ->
+            focus := None;
+            if hover then `clicked else `normal
+        | `clicked -> `normal
+        | other -> other)
   in
-  state := st;
   fn st
 
 let button ui text =

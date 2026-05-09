@@ -25,6 +25,7 @@ val horizontal : ?gap:float -> t list -> t
 val vertical : ?gap:float -> t list -> t
 val over : t list -> t
 val vclip : float -> t -> t
+val hclip : float -> t -> t
 val pad : float -> t -> t
 val center : t list -> t
 val solve : ?width:(float -> float) -> ?height:(float -> float) -> t -> unit

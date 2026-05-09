@@ -215,6 +215,19 @@ let vclip height layout =
           in
           fn box ) )
 
+let hclip width layout =
+  let w_constraint, fn = layout in
+  ( C1.exact width,
+    fun actual_width ->
+      let h_constraint, fn = fn (max w_constraint.min actual_width) in
+      ( h_constraint,
+        fun box ->
+          let box =
+            Box.v (Box.top_left box)
+              (Size.v (max w_constraint.min (Box.width box)) (Box.height box))
+          in
+          fn box ) )
+
 let center layout =
   let w, fn = layout in
   ( C1.max w C1.flex,
