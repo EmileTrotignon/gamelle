@@ -58,8 +58,7 @@ let v ui ?(min_height = 100.0) fn =
     vclip ui clip_box ~offset:(Vec.v 0.0 !state.offset) @@ fun () ->
     with_box ui @@ fun child_box ->
     new_child_height := Box.height child_box;
-    padding ui 10.0 @@ fun () ->
-    vertical ui fn
+    padding ui 10.0 @@ fun () -> vertical ui fn
   in
   let cur = { !state with child_height = !new_child_height } in
   let offset = vscrollbar ui ~min_height (Box.height container_box) cur in

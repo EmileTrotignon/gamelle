@@ -7,7 +7,7 @@ let vscroll = Vscroll.v
 let slider = Slider.v
 let int_slider = Int_slider.v
 
-let window ~io ?width ?height fn =
+let window ~io ~at ?size fn =
   let t = { io = ref io; renderers = []; loc_stack = [] } in
   let ui = (t, "root") in
   let result =
@@ -17,9 +17,9 @@ let window ~io ?width ?height fn =
   in
   match t.renderers with
   | [ single ] ->
-      Layout.solve ?width ?height single;
+      let final_size = Layout.solve ~at ?size single in
       Ui_backend.clean_old_states ();
-      result
+      (final_size, result)
   | _ -> assert false
 
 type constrain = Layout.constrain = { min : float; flex : float; max : float }
@@ -29,6 +29,7 @@ let nest_loc = Ui_backend.nest_loc
 
 module Custom = struct
   type 'a state = 'a Ui_backend.state
+
   let value = Ui_backend.state_value
   let update = Ui_backend.state_update
   let get_io = Ui_backend.get_io
@@ -40,13 +41,18 @@ module Custom = struct
   let horizontal = Widgets.horizontal
   let vertical = Widgets.vertical
   let over = Widgets.over
+
   module Layout = Layout
+
   let on_click = Widgets.on_click
   let with_box = Widgets.with_box
   let boxed = Widgets.boxed
   let padding = Widgets.padding
   let center = Widgets.center
+
   module type Store = Ui_backend.Store
+
   module State = Ui_backend.State
+
   let with_state = Ui_backend.with_state
 end

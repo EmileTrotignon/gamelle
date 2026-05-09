@@ -751,11 +751,20 @@ module Ui : sig
   type ui
 
   val window :
-    io:io ->
-    ?width:(float -> float) ->
-    ?height:(float -> float) ->
-    (ui -> 'a) ->
-    'a
+    io:io -> at:Point.t -> ?size:(Size.t -> Size.t) -> (ui -> 'a) -> Size.t * 'a
+  (** {ocaml[window ~io ~at ?size begin fun [%ui] ->
+    ...
+  end]}
+
+  renders a UI panel with its top-left corner at [at] and returns
+  [(panel_size, result)] where [panel_size] is the final rendered size and
+  [result] is the value returned by the callback.
+
+  The panel lays out its contents, then [size] is applied to the resulting
+  natural size to produce the final dimensions; it defaults to the identity,
+  meaning the panel is exactly as large as its contents require. Use [~size:(fun
+  _ -> Size.v w h)] to fix dimensions, or [~size:(fun s -> Size.v (Size.width s
+  *. 1.1) (Size.height s))] to scale one axis. *)
 
   val button : ui -> string -> bool
   (** [button [%ui] "click me"] display a button saying "click me", and return
@@ -876,7 +885,9 @@ to be rendered in a box that is too small, resulting in clipping or overflow. *)
       {[
         open Ui.Custom
 
-        module Store = State(struct type t = float end)
+        module Store = State (struct
+          type t = float
+        end)
 
         let my_toggle ui (checked : bool) : bool =
           let anim = Store.find [%ui] 0.0 in
@@ -885,16 +896,15 @@ to be rendered in a box that is too small, resulting in clipping or overflow. *)
             (if st = `pressed then min 1.0 (value anim +. 0.05) else value anim);
           let checked = if st = `clicked then not checked else checked in
           draw ui ~min_width:40. ~min_height:20. (fun ~io box ->
-            (* render using checked and (value anim) *)
-            ());
+              (* render using checked and (value anim) *)
+              ());
           checked
-      ]}
-  *)
+      ]} *)
 
   module Custom : sig
     type 'a state
-    (** Persistent per-instance internal state. Use {!get} and {!set} to
-        access it. The concrete representation is hidden. *)
+    (** Persistent per-instance internal state. Use {!get} and {!set} to access
+        it. The concrete representation is hidden. *)
 
     val value : 'a state -> 'a
     val update : 'a state -> 'a -> unit
@@ -910,20 +920,24 @@ to be rendered in a box that is too small, resulting in clipping or overflow. *)
       (io:io -> Box.t -> unit) ->
       unit
     (** The primitive leaf widget. Declares a box with the given layout
-        constraints and calls the drawing function with the allocated [~io]
-        and {!Box.t}.
+        constraints and calls the drawing function with the allocated [~io] and
+        {!Box.t}.
 
-        All size parameters default to [0.0] except [max_width] and
-        [max_height] which default to [infinity]. A [flex] value of [0.0]
-        means the widget takes exactly its [min] size; a positive value means
-        it competes for extra space proportionally to that value. *)
+        All size parameters default to [0.0] except [max_width] and [max_height]
+        which default to [infinity]. A [flex] value of [0.0] means the widget
+        takes exactly its [min] size; a positive value means it competes for
+        extra space proportionally to that value. *)
 
     val get_io : ui -> io
-    (** Get the current [io]. Needed to read input events such as mouse
-        position inside [on_click] callbacks. *)
+    (** Get the current [io]. Needed to read input events such as mouse position
+        inside [on_click] callbacks. *)
 
+    (** Layout primitives for building container widgets. Pass a
+        [Layout.t list -> Layout.t] function to {!parent} to define how children
+        are arranged. *)
     module Layout : sig
       type t
+
       val horizontal : ?gap:float -> t list -> t
       val vertical : ?gap:float -> t list -> t
       val over : t list -> t
@@ -931,17 +945,15 @@ to be rendered in a box that is too small, resulting in clipping or overflow. *)
       val center : t list -> t
       val vclip : float -> t -> t
       val hclip : float -> t -> t
-      val reshape : ?width:(constrain -> constrain) -> ?height:(constrain -> constrain) -> t -> t
-    end
-    (** Layout primitives for building container widgets. Pass a
-        [Layout.t list -> Layout.t] function to {!parent} to define how
-        children are arranged. *)
 
-    val parent :
-      ui ->
-      (Layout.t list -> Layout.t) ->
-      (unit -> 'a) ->
-      'a
+      val reshape :
+        ?width:(constrain -> constrain) ->
+        ?height:(constrain -> constrain) ->
+        t ->
+        t
+    end
+
+    val parent : ui -> (Layout.t list -> Layout.t) -> (unit -> 'a) -> 'a
     (** Container primitive. [parent ui layout fn] runs [fn] to collect child
         layout nodes, passes them to [layout], and inserts the result. All
         built-in layout combinators ([horizontal], [vertical], etc.) are
@@ -962,23 +974,19 @@ to be rendered in a box that is too small, resulting in clipping or overflow. *)
     (** Clips content horizontally to [box], scrolled by [offset]. Events
         outside the clip box are suppressed. *)
 
-    val on_click : ui -> ([ `normal | `hover | `pressed | `clicked ] -> 'a) -> 'a
+    val on_click :
+      ui -> ([ `normal | `hover | `pressed | `clicked ] -> 'a) -> 'a
     (** Track hover/press/click state for whatever is rendered inside the
         callback. Internal button state is managed automatically. *)
 
     val with_box : ui -> (Box.t -> 'a) -> 'a
-    (** Provides the layout box allocated to the content. Useful when the box
-        is needed for hit-testing or positioning outside of a [draw] call. *)
+    (** Provides the layout box allocated to the content. Useful when the box is
+        needed for hit-testing or positioning outside of a [draw] call. *)
 
     val boxed :
-      ?border:Color.t ->
-      ?bg:Color.t ->
-      ?pad:float ->
-      ui ->
-      (unit -> 'a) ->
-      'a
-    (** Wraps content in a bordered rectangle with background fill.
-        Defaults to theme colors and [pad = 10.0]. *)
+      ?border:Color.t -> ?bg:Color.t -> ?pad:float -> ui -> (unit -> 'a) -> 'a
+    (** Wraps content in a bordered rectangle with background fill. Defaults to
+        theme colors and [pad = 10.0]. *)
 
     val padding : ui -> float -> (unit -> 'a) -> 'a
     (** Adds uniform padding around the content. *)
@@ -986,29 +994,28 @@ to be rendered in a box that is too small, resulting in clipping or overflow. *)
     val center : ui -> (unit -> 'a) -> 'a
     (** Centers the content in the available space. *)
 
-    module type Store = sig
-      type value
-      val find : ui -> value -> value state
-    end
     (** Module type satisfied by the result of {!State}. Pass as a first-class
         module to {!with_state}. *)
+    module type Store = sig
+      type value
 
-    module State : functor (V : sig
-      type t
-    end) -> Store with type value = V.t
-    (** [module Store = State(struct type t = my_type end)] creates a
-        persistent store for internal state of type [my_type]. Declare one
-        per internal-state type at module level. *)
+      val find : ui -> value -> value state
+    end
+
+    (** [module Store = State(struct type t = my_type end)] creates a persistent
+        store for internal state of type [my_type]. Declare one per
+        internal-state type at module level. *)
+    module State : functor
+      (V : sig
+         type t
+       end)
+      -> Store with type value = V.t
 
     val with_state :
-      (module Store with type value = 'a) ->
-      ui ->
-      'a ->
-      ('a -> 'a) ->
-      'a
+      (module Store with type value = 'a) -> ui -> 'a -> ('a -> 'a) -> 'a
     (** [with_state (module Store) [%ui] default (fun v -> ...)] looks up the
-        persistent state for this call-site, passes the current value [v] to
-        the callback, persists the returned value, and returns it.
+        persistent state for this call-site, passes the current value [v] to the
+        callback, persists the returned value, and returns it.
 
         The state type ['a] can combine internal and external parts; the caller
         is responsible for extracting whichever parts it needs from the result.
@@ -1016,13 +1023,16 @@ to be rendered in a box that is too small, resulting in clipping or overflow. *)
         {[
           open Ui.Custom
 
-          module Store = State(struct type t = int * string end)
+          module Store = State (struct
+            type t = int * string
+          end)
 
           let my_widget ui init_text =
-            let (_, text) =
-              with_state (module Store) [%ui] (0, init_text) @@ fun (cursor, text) ->
+            let _, text =
+              with_state (module Store) [%ui] (0, init_text)
+              @@ fun (cursor, text) ->
               draw ui ~min_width:30. ~min_height:30. (fun ~io box ->
-                (* render *) ());
+                  (* render *) ());
               (cursor + 1, text)
             in
             text

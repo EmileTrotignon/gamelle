@@ -26,16 +26,10 @@ let initial_state =
 let rec loop { text; check1; check2; slider1; slider2; rad } ~io =
   if Input.is_pressed ~io `escape then raise Exit;
   Window.show_cursor ~io true;
-  let wr = ref 0.0 and hr = ref 0.0 in
-  let state =
+  let panel_size, state =
     let open Ui in
-    window ~io
-      ~width:(fun w ->
-        wr := 1.1 *. w;
-        !wr)
-      ~height:(fun h ->
-        hr := 1.1 *. h;
-        !hr)
+    window ~io ~at:Point.zero ~size:(fun s ->
+        Size.v (Size.width s *. 1.5) (Size.height s *. 1.))
     @@ fun [%ui] ->
     let text = text_input [%ui] text in
     text_area [%ui]
@@ -109,7 +103,7 @@ let rec loop { text; check1; check2; slider1; slider2; rad } ~io =
     end;
     { text; check1; check2; slider1; slider2; rad }
   in
-  Window.set_size ~io (Size.v !wr !hr);
+  Window.set_size ~io panel_size;
   next_frame ~io;
   loop state ~io
 

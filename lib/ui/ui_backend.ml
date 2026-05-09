@@ -54,6 +54,7 @@ module State (Value : sig
 end) =
 struct
   type value = Value.t
+
   let state : value state H.t = H.create 16
   let () = all_states := State state :: !all_states
 
@@ -70,6 +71,7 @@ type ui = t * string
 
 module type Store = sig
   type value
+
   val find : ui -> value -> value state
 end
 

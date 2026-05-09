@@ -68,12 +68,16 @@ let width ?(min = 0.0) ?(max = infinity) ?(flex = 0.0) fn : t =
 let height ?(min = 0.0) ?(max = infinity) ?(flex = 0.0) fn : h =
   ({ min; flex; max }, fn)
 
-let solve ?(width = fun w -> w) ?(height = fun h -> h) layout =
+let solve ~at ?(size = fun s -> s) layout =
   let { min = w; _ }, fn = layout in
-  let w = max w (width w) in
-  let { min = h; _ }, fn = fn w in
-  let h = max h (height h) in
-  fn (Box.v Point.zero (Size.v w h))
+  let { min = h; _ }, _ = fn w in
+  let s = size (Size.v w h) in
+  let w = max w (Size.width s) in
+  let h = max h (Size.height s) in
+  let _, render = fn w in
+  let s = Size.v w h in
+  render (Box.v at s);
+  s
 
 let v ?(min_width = 0.0) ?(flex_width = 0.0) ?(max_width = infinity)
     ?(min_height = 0.0) ?(flex_height = 0.0) ?(max_height = infinity) fn =
