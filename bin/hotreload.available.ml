@@ -2,45 +2,47 @@ let ui_replay ~io (nb_past, target_clock, nb_future) =
   let open Gamelle in
   let open Ui in
   let io = View.font_size 12 @@ View.color Color.white io in
-  window ~io
-    ~width:(fun _ -> Size.width (Window.size ~io))
-    ~height:(fun h ->
-      Gamelle_common.ui_replay_height := h;
-      h)
-  @@ fun [%ui] ->
-  horizontal [%ui] @@ fun () ->
-  let total_events = nb_past + nb_future in
-  let present =
-    if total_events <= 0 then 0
-    else
-      over [%ui] @@ fun () ->
-      draw [%ui] (fun ~io box ->
-          let module Box = Gamelle.Box in
-          let size = Box.size box in
-          let progress =
-            8.0
-            +. ((Size.width size -. 16.0) *. float nb_past /. float total_events)
-          in
-          let target =
-            8.0
-            +. (Size.width size -. 16.0)
-               *. float target_clock /. float total_events
-          in
-          let missing =
-            Box.v
-              Vec.(Box.top_left box + Vec.v progress 0.0)
-              (Size.v (target -. progress) (Size.height size))
-          in
-          if Box.width missing > 0.0 then
-            Box.fill ~io ~color:Color.(with_alpha 0.2 red) missing);
-      int_of_float
-      @@ slider [%ui] ~min:0.0 ~max:(float total_events) (float target_clock)
+  let _, result =
+    window ~io ~at:Point.zero ~size:(fun s ->
+        Gamelle_common.ui_replay_height := Size.height s;
+        Size.v (Size.width (Window.size ~io)) (Size.height s))
+    @@ fun [%ui] ->
+    horizontal [%ui] @@ fun () ->
+    let total_events = nb_past + nb_future in
+    let present =
+      if total_events <= 0 then 0
+      else
+        over [%ui] @@ fun () ->
+        Ui.Custom.draw [%ui] (fun ~io box ->
+            let module Box = Gamelle.Box in
+            let size = Box.size box in
+            let progress =
+              8.0
+              +. (Size.width size -. 16.0)
+                 *. float nb_past /. float total_events
+            in
+            let target =
+              8.0
+              +. (Size.width size -. 16.0)
+                 *. float target_clock /. float total_events
+            in
+            let missing =
+              Box.v
+                Vec.(Box.top_left box + Vec.v progress 0.0)
+                (Size.v (target -. progress) (Size.height size))
+            in
+            if Box.width missing > 0.0 then
+              Box.fill ~io ~color:Color.(with_alpha 0.2 red) missing);
+        int_of_float
+        @@ slider [%ui] ~min:0.0 ~max:(float total_events) (float target_clock)
+    in
+    let nb_future =
+      reshape [%ui] ~width:(fun _ -> { flex = 0.0; min = 60.0; max = 60.0 })
+      @@ fun () -> if button [%ui] "CLEAR" then 0 else nb_future
+    in
+    (nb_past, present, nb_future)
   in
-  let nb_future =
-    reshape [%ui] ~width:(fun _ -> { flex = 0.0; min = 60.0; max = 60.0 })
-    @@ fun () -> if button [%ui] "CLEAR" then 0 else nb_future
-  in
-  (nb_past, present, nb_future)
+  result
 
 let to_string = function
   | Inotify.Access -> "Access"

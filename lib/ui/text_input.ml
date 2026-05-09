@@ -145,18 +145,21 @@ let update ~io { offset; cursor; focused; pressed_key } text box =
   ({ offset; cursor; focused; pressed_key }, text)
 
 module State = Ui_backend.State (struct
-  type t = state
+  type t = state * Text.t
 end)
 
 let v ui text =
   boxed ui @@ fun () ->
   with_box ui @@ fun box ->
   let io = get_io ui in
-  let text = Text.of_string text in
-  let state = State.find ui default_state in
-  let st, text = update ~io !state text box in
-  state := st;
-  let text_size = Text.size_t ~io text in
-  Ui_backend.draw ui ~min_width:30.0 ~flex_width:1.0
-    ~min_height:(Size.height text_size) (render st text);
+  let default = (default_state, Text.of_string text) in
+  let _internal, text =
+    Ui_backend.with_state (module State) ui default begin fun (st, text) ->
+      let st, text = update ~io st text box in
+      let text_size = Text.size_t ~io text in
+      Ui_backend.draw ui ~min_width:30.0 ~flex_width:1.0
+        ~min_height:(Size.height text_size) (render st text);
+      (st, text)
+      end
+  in
   Text.to_string text

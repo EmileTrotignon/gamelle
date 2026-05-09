@@ -44,11 +44,18 @@ let id (ui, loc) =
   H.replace used_ids id (counter + 1);
   { id with counter }
 
+type 'a state = 'a ref
+
+let state_value s = !s
+let state_update s v = s := v
+
 module State (Value : sig
   type t
 end) =
 struct
-  let state : Value.t ref H.t = H.create 16
+  type value = Value.t
+
+  let state : value state H.t = H.create 16
   let () = all_states := State state :: !all_states
 
   let find ui default =
@@ -61,6 +68,18 @@ struct
 end
 
 type ui = t * string
+
+module type Store = sig
+  type value
+
+  val find : ui -> value -> value state
+end
+
+let with_state (type a) (module S : Store with type value = a) ui default fn =
+  let s = S.find ui default in
+  let result = fn (state_value s) in
+  state_update s result;
+  result
 
 let get_io (ui, _loc) = !(ui.io)
 let push_renderer ~ui renderer = ui.renderers <- renderer :: ui.renderers
@@ -115,6 +134,20 @@ let vclip (ui, _loc) ?(offset = Vec.zero) box f =
   let result =
     parent (ui, _loc)
       (function [ single ] -> Layout.vclip 0.0 single | _ -> assert false)
+      f
+  in
+  ui.io := io;
+  result
+
+let hclip (ui, _loc) ?(offset = Vec.zero) box f =
+  let io = !(ui.io) in
+  ui.io :=
+    View.clip_events true
+    @@ View.clip (Box.translate offset box)
+    @@ View.translate Vec.(-1.0 * offset) io;
+  let result =
+    parent (ui, _loc)
+      (function [ single ] -> Layout.hclip 0.0 single | _ -> assert false)
       f
   in
   ui.io := io;
