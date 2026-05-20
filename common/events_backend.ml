@@ -53,6 +53,7 @@ type key =
   | `kp_subtract
   | `menu
   | `meta
+  | `meta_right
   | `num_lock
   | `page_down
   | `page_up

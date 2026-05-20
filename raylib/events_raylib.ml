@@ -93,7 +93,7 @@ let key_of_raylib : Raylib.Key.t -> key = function
   | Raylib.Key.Right_shift -> `shift
   | Raylib.Key.Right_control -> `control_right
   | Raylib.Key.Right_alt -> `alt_gr
-  | Raylib.Key.Right_super -> `meta
+  | Raylib.Key.Right_super -> `meta_right
   | Raylib.Key.Kb_menu -> `kb_menu
   | Raylib.Key.Kp_0 -> `kp_0
   | Raylib.Key.Kp_1 -> `kp_1
