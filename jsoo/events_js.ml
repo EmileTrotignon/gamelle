@@ -84,15 +84,13 @@ let keys_of_code kc =
   | "Quote" -> [ `physical_char '\'' ]
   | "Semicolon" -> [ `physical_char ';' ]
   | "Slash" -> [ `physical_char '/' ]
-  | kc ->
+  | kc -> (
       let c = Scanf.sscanf_opt kc "Key%c" Fun.id in
-      (match c with
+      match c with
       | Some c -> [ `physical_char (Char.lowercase_ascii c) ]
-      | None ->
+      | None -> (
           let c = Scanf.sscanf_opt kc "Digit%c" Fun.id in
-          match c with
-          | Some c -> [ `physical_char c ]
-          | None -> [])
+          match c with Some c -> [ `physical_char c ] | None -> []))
 
 let keys_of_event e =
   keys_of_code (Ev.Keyboard.code e) @ keys_of_string (Ev.Keyboard.key e)
