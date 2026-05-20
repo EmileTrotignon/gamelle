@@ -25,4 +25,4 @@ jobs:
         run: opam install ./gamelle-all.opam --deps-only
 
       - name: Build
-        run: opam exec -- dune build
+        run: opam exec -- dune build @install

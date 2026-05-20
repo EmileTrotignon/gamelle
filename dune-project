@@ -64,5 +64,5 @@
 (package
  (name gamelle-all)
  (synopsis "Gamelle with all optional deps")
- (depends gamelle raylib inotify tsdl tsdl-image tsdl-mixer tsdl-ttf conf-sdl2-gfx)
+ (depends gamelle raylib ctypes ctypes-foreign inotify tsdl tsdl-image tsdl-mixer tsdl-ttf conf-sdl2-gfx)
  (allow_empty))
