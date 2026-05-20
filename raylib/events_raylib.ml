@@ -117,12 +117,34 @@ let key_of_raylib : Raylib.Key.t -> key = function
   | Raylib.Key.Volume_up -> `volume_up
   | Raylib.Key.Volume_down -> `volume_down
 
+let all_raylib_keys =
+  Raylib.Key.
+    [
+      Null; Apostrophe; Comma; Minus; Period; Slash;
+      Zero; One; Two; Three; Four; Five; Six; Seven; Eight; Nine;
+      Semicolon; Equal;
+      A; B; C; D; E; F; G; H; I; J; K; L; M;
+      N; O; P; Q; R; S; T; U; V; W; X; Y; Z;
+      Left_bracket; Backslash; Right_bracket; Grave;
+      Space; Escape; Enter; Tab; Backspace; Insert; Delete;
+      Right; Left; Down; Up;
+      Page_up; Page_down; Home; End;
+      Caps_lock; Scroll_lock; Num_lock; Print_screen; Pause;
+      F1; F2; F3; F4; F5; F6; F7; F8; F9; F10; F11; F12;
+      Left_shift; Left_control; Left_alt; Left_super;
+      Right_shift; Right_control; Right_alt; Right_super;
+      Kb_menu;
+      Kp_0; Kp_1; Kp_2; Kp_3; Kp_4; Kp_5; Kp_6; Kp_7; Kp_8; Kp_9;
+      Kp_decimal; Kp_divide; Kp_multiply; Kp_subtract; Kp_add;
+      Kp_enter; Kp_equal;
+      Volume_up; Volume_down;
+    ]
+
 let build_keypressed () =
   let keys = ref Keys.empty in
-  for i = 0 to 350 do
-    let rk = Raylib.Key.of_int i in
-    if Raylib.is_key_down rk then keys := Keys.add (key_of_raylib rk) !keys
-  done;
+  List.iter
+    (fun rk -> if Raylib.is_key_down rk then keys := Keys.add (key_of_raylib rk) !keys)
+    all_raylib_keys;
   if Raylib.is_mouse_button_down Raylib.MouseButton.Left then
     keys := Keys.add `click_left !keys;
   if Raylib.is_mouse_button_down Raylib.MouseButton.Right then
