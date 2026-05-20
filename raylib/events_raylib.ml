@@ -94,7 +94,7 @@ let key_of_raylib : Raylib.Key.t -> key = function
   | Raylib.Key.Right_control -> `control_right
   | Raylib.Key.Right_alt -> `alt_gr
   | Raylib.Key.Right_super -> `meta_right
-  | Raylib.Key.Kb_menu -> `kb_menu
+  | Raylib.Key.Kb_menu -> `context_menu
   | Raylib.Key.Kp_0 -> `kp_0
   | Raylib.Key.Kp_1 -> `kp_1
   | Raylib.Key.Kp_2 -> `kp_2
@@ -112,8 +112,8 @@ let key_of_raylib : Raylib.Key.t -> key = function
   | Raylib.Key.Kp_add -> `kp_add
   | Raylib.Key.Kp_enter -> `kp_enter
   | Raylib.Key.Kp_equal -> `kp_equal
-  | Raylib.Key.Back -> `back
-  | Raylib.Key.Menu -> `menu
+  | Raylib.Key.Back -> failwith "Android-only key"
+  | Raylib.Key.Menu -> failwith "Android-only key"
   | Raylib.Key.Volume_up -> `volume_up
   | Raylib.Key.Volume_down -> `volume_down
 

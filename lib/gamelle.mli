@@ -743,7 +743,6 @@ module Input : sig
     | `arrow_left
     | `arrow_right
     | `arrow_up
-    | `back
     | `backspace
     | `caps_lock
     | `click_left
@@ -769,7 +768,7 @@ module Input : sig
     | `home
     | `input_char of string
     | `insert
-    | `kb_menu
+    | `context_menu
     | `kp_0
     | `kp_1
     | `kp_2
@@ -787,7 +786,6 @@ module Input : sig
     | `kp_equal
     | `kp_multiply
     | `kp_subtract
-    | `menu
     | `meta
     | `meta_right
     | `num_lock
@@ -835,19 +833,22 @@ module Ui : sig
 
   val window :
     io:io -> at:Point.t -> ?size:(Size.t -> Size.t) -> (ui -> 'a) -> Size.t * 'a
-  (** {ocaml[window ~io ~at ?size begin fun [%ui] ->
-    ...
-  end]}
+  (** {@ocaml[
+          window ~io ~at ?size begin fun [%ui] ->
+        ...
+      end
+      ]}
 
-  renders a UI panel with its top-left corner at [at] and returns
-  [(panel_size, result)] where [panel_size] is the final rendered size and
-  [result] is the value returned by the callback.
+      renders a UI panel with its top-left corner at [at] and returns
+      [(panel_size, result)] where [panel_size] is the final rendered size and
+      [result] is the value returned by the callback.
 
-  The panel lays out its contents, then [size] is applied to the resulting
-  natural size to produce the final dimensions; it defaults to the identity,
-  meaning the panel is exactly as large as its contents require. Use [~size:(fun
-  _ -> Size.v w h)] to fix dimensions, or [~size:(fun s -> Size.v (Size.width s
-  *. 1.1) (Size.height s))] to scale one axis. *)
+      The panel lays out its contents, then [size] is applied to the resulting
+      natural size to produce the final dimensions; it defaults to the identity,
+      meaning the panel is exactly as large as its contents require. Use
+      [~size:(fun _ -> Size.v w h)] to fix dimensions, or
+      [~size:(fun s -> Size.v (Size.width s *. 1.1) (Size.height s))] to scale
+      one axis. *)
 
   val button : ui -> string -> bool
   (** [button [%ui] "click me"] display a button saying "click me", and return

@@ -7,7 +7,6 @@ type key =
   | `arrow_left
   | `arrow_right
   | `arrow_up
-  | `back
   | `backspace
   | `caps_lock
   | `click_left
@@ -33,7 +32,7 @@ type key =
   | `home
   | `input_char of string
   | `insert
-  | `kb_menu
+  | `context_menu
   | `kp_0
   | `kp_1
   | `kp_2
@@ -51,7 +50,6 @@ type key =
   | `kp_equal
   | `kp_multiply
   | `kp_subtract
-  | `menu
   | `meta
   | `meta_right
   | `num_lock
