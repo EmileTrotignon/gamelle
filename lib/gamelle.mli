@@ -743,20 +743,65 @@ module Input : sig
     | `arrow_left
     | `arrow_right
     | `arrow_up
+    | `back
     | `backspace
+    | `caps_lock
     | `click_left
     | `click_right
     | `control_left
     | `control_right
     | `delete
+    | `end_key
+    | `enter
     | `escape
+    | `f1
+    | `f2
+    | `f3
+    | `f4
+    | `f5
+    | `f6
+    | `f7
+    | `f8
+    | `f9
+    | `f10
+    | `f11
+    | `f12
+    | `home
     | `input_char of string
+    | `insert
+    | `kb_menu
+    | `kp_0
+    | `kp_1
+    | `kp_2
+    | `kp_3
+    | `kp_4
+    | `kp_5
+    | `kp_6
+    | `kp_7
+    | `kp_8
+    | `kp_9
+    | `kp_add
+    | `kp_decimal
+    | `kp_divide
+    | `kp_enter
+    | `kp_equal
+    | `kp_multiply
+    | `kp_subtract
+    | `menu
     | `meta
+    | `num_lock
+    | `page_down
+    | `page_up
+    | `pause
     | `physical_char of char
+    | `print_screen
     | `quit
+    | `scroll_lock
     | `shift
     | `space
     | `tab
+    | `volume_down
+    | `volume_up
     | `wheel
     | `unknown_key ]
   (** The type of player inputs. *)

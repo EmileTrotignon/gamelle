@@ -17,11 +17,33 @@ let keys_of_string kc =
   | "ArrowUp" -> [ `arrow_up ]
   | "ArrowDown" -> [ `arrow_down ]
   | "Backspace" -> [ `backspace ]
-  | "Escape" -> [ `escape ]
-  | "ControlLeft" -> [ `control_left ]
-  | "ControlRight" -> [ `control_right ]
+  | "CapsLock" -> [ `caps_lock ]
+  | "Control" -> [ `control_left ]
   | "Delete" -> [ `delete ]
+  | "End" -> [ `end_key ]
+  | "Enter" -> [ `enter ]
+  | "Escape" -> [ `escape ]
+  | "F1" -> [ `f1 ]
+  | "F2" -> [ `f2 ]
+  | "F3" -> [ `f3 ]
+  | "F4" -> [ `f4 ]
+  | "F5" -> [ `f5 ]
+  | "F6" -> [ `f6 ]
+  | "F7" -> [ `f7 ]
+  | "F8" -> [ `f8 ]
+  | "F9" -> [ `f9 ]
+  | "F10" -> [ `f10 ]
+  | "F11" -> [ `f11 ]
+  | "F12" -> [ `f12 ]
+  | "Home" -> [ `home ]
+  | "Insert" -> [ `insert ]
   | "Meta" -> [ `meta ]
+  | "NumLock" -> [ `num_lock ]
+  | "PageDown" -> [ `page_down ]
+  | "PageUp" -> [ `page_up ]
+  | "Pause" -> [ `pause ]
+  | "PrintScreen" -> [ `print_screen ]
+  | "ScrollLock" -> [ `scroll_lock ]
   | "Shift" -> [ `shift ]
   | " " -> [ `space; `input_char " " ]
   | "Tab" -> [ `tab ]
@@ -31,11 +53,46 @@ let keys_of_string kc =
       [ `unknown_key ]
 
 let keys_of_code kc =
-  let kc = Jstr.to_string kc in
-  let c = Scanf.sscanf_opt kc "Key%c" Fun.id in
-  match c with
-  | Some c -> [ `physical_char (Char.lowercase_ascii c) ]
-  | None -> []
+  match Jstr.to_string kc with
+  | "ControlLeft" -> [ `control_left ]
+  | "ControlRight" -> [ `control_right ]
+  | "Numpad0" -> [ `kp_0 ]
+  | "Numpad1" -> [ `kp_1 ]
+  | "Numpad2" -> [ `kp_2 ]
+  | "Numpad3" -> [ `kp_3 ]
+  | "Numpad4" -> [ `kp_4 ]
+  | "Numpad5" -> [ `kp_5 ]
+  | "Numpad6" -> [ `kp_6 ]
+  | "Numpad7" -> [ `kp_7 ]
+  | "Numpad8" -> [ `kp_8 ]
+  | "Numpad9" -> [ `kp_9 ]
+  | "NumpadAdd" -> [ `kp_add ]
+  | "NumpadDecimal" -> [ `kp_decimal ]
+  | "NumpadDivide" -> [ `kp_divide ]
+  | "NumpadEnter" -> [ `kp_enter ]
+  | "NumpadEqual" -> [ `kp_equal ]
+  | "NumpadMultiply" -> [ `kp_multiply ]
+  | "NumpadSubtract" -> [ `kp_subtract ]
+  | "Backquote" -> [ `physical_char '`' ]
+  | "Backslash" -> [ `physical_char '\\' ]
+  | "BracketLeft" -> [ `physical_char '[' ]
+  | "BracketRight" -> [ `physical_char ']' ]
+  | "Comma" -> [ `physical_char ',' ]
+  | "Equal" -> [ `physical_char '=' ]
+  | "Minus" -> [ `physical_char '-' ]
+  | "Period" -> [ `physical_char '.' ]
+  | "Quote" -> [ `physical_char '\'' ]
+  | "Semicolon" -> [ `physical_char ';' ]
+  | "Slash" -> [ `physical_char '/' ]
+  | kc ->
+      let c = Scanf.sscanf_opt kc "Key%c" Fun.id in
+      (match c with
+      | Some c -> [ `physical_char (Char.lowercase_ascii c) ]
+      | None ->
+          let c = Scanf.sscanf_opt kc "Digit%c" Fun.id in
+          match c with
+          | Some c -> [ `physical_char c ]
+          | None -> [])
 
 let keys_of_event e =
   keys_of_code (Ev.Keyboard.code e) @ keys_of_string (Ev.Keyboard.key e)
