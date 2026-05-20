@@ -16,12 +16,10 @@
   basic_js.mli
   src
   $ ../screenshot/screenshot.exe _build/default/basic/basic.html > image.png
-  $ echo $PWD
-  $TESTCASE_ROOT
 Compare against the reference screenshot (promote reference.png when intentionally changing the rendering)
 
   $ odiff reference.png image.png diff.png || true
-  Found 399807 different pixels (82.81%)
+  Images are identical
 
 Check the canvas size matches the View.drawing_box dimensions (800x600)
 
