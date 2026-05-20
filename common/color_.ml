@@ -5,8 +5,7 @@ include Gg.Color
    rgb 255 0 0 renders as #FF0000, rgb 40 40 40 renders as #282828, etc. *)
 let srgb_to_linear x =
   let x = float x /. 255.0 in
-  if x <= 0.04045 then x /. 12.92
-  else ((x +. 0.055) /. 1.055) ** 2.4
+  if x <= 0.04045 then x /. 12.92 else ((x +. 0.055) /. 1.055) ** 2.4
 
 let rgb ?(alpha = 1.0) r g b =
   v (srgb_to_linear r) (srgb_to_linear g) (srgb_to_linear b) alpha
