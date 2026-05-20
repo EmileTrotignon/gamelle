@@ -115,6 +115,18 @@ module Color : sig
   val magenta : t
   val gray : t
   val orange : t
+  val purple : t
+  val pink : t
+  val teal : t
+  val coral : t
+  val gold : t
+  val violet : t
+  val crimson : t
+  val lime : t
+  val indigo : t
+  val turquoise : t
+  val brown : t
+  val silver : t
 end
 
 type xy = { x : float; y : float }
@@ -155,6 +167,20 @@ module Point : sig
       - [lerp 0.0 a b = a]
       - [lerp 1.0 a b = b]
       - [lerp 0.5 a b =] mid point of [a] and [b] *)
+
+  val translate : xy -> t -> t
+  (** [translate v pt] translates point [pt] by vector [v] (where [v] is a
+      {!Vec.t}). *)
+
+  val polar : float -> float -> t
+  (** [polar norm angle] is the point at polar coordinates with magnitude [norm]
+      and angle [angle] (in radians). *)
+
+  val to_tuple : t -> float * float
+  (** [to_tuple pt] is [(x pt, y pt)]. *)
+
+  val equal : t -> t -> bool
+  (** [equal a b] is [true] if [a] and [b] are approximately equal. *)
 end
 
 module Vec : sig
@@ -209,6 +235,26 @@ module Vec : sig
 
   val ( - ) : t -> t -> t
   (** [a - b] is the substraction of vector [a] by [b]. *)
+
+  val norm2 : t -> float
+  (** [norm2 v] is the squared length of vector [v]. *)
+
+  val ortho : t -> t
+  (** [ortho v] is a vector orthogonal to [v] (rotated 90° counter-clockwise).
+  *)
+
+  val cross : t -> t -> float
+  (** [cross a b] is the 2D cross product of vectors [a] and [b]. *)
+
+  val lerp : float -> t -> t -> t
+  (** [lerp t a b] is the linear interpolation between vectors [a] and [b]. *)
+
+  val polar : float -> float -> t
+  (** [polar norm angle] is the vector with magnitude [norm] and angle [angle]
+      (in radians). *)
+
+  val equal : t -> t -> bool
+  (** [equal a b] is [true] if [a] and [b] are approximately equal. *)
 end
 
 (** {2 Geometry} *)
@@ -264,8 +310,20 @@ module Segment : sig
   val to_tuple : t -> Point.t * Point.t
   (** [to_tuple s] returns the two end-points of the segment [s]. *)
 
+  val start : t -> Point.t
+  (** [start s] is the start point of segment [s]. *)
+
+  val end_ : t -> Point.t
+  (** [end_ s] is the end point of segment [s]. *)
+
+  val center : t -> Point.t
+  (** [center s] is the midpoint of the segment [s]. *)
+
   val vector : t -> Vec.t
   (** [vector s] is the direction vector of the segment [s]. *)
+
+  val translate : Vec.t -> t -> t
+  (** [translate v s] translates segment [s] by vector [v]. *)
 
   val intersect : t -> t -> bool
   (** [intersect a b] returns [true] if segment [a] intersects segment [b],
@@ -317,6 +375,9 @@ module Box : sig
   val height : t -> float
   (** [height b] returns the height of the box [b]. *)
 
+  val center : t -> Point.t
+  (** [center b] is the center point of the box [b]. *)
+
   (** {3 Vertices} *)
 
   val top_left : t -> Point.t
@@ -364,6 +425,16 @@ module Box : sig
 
   val bottom : t -> Segment.t
   (** [bottom b] returns the bottom segment of the box [b]. *)
+
+  (** {2 Transforms} *)
+
+  val translate : Vec.t -> t -> t
+  (** [translate v b] translates box [b] by vector [v]. *)
+
+  val shrink :
+    ?left:float -> ?right:float -> ?top:float -> ?bottom:float -> t -> t
+  (** [shrink ~left ~right ~top ~bottom b] shrinks the box [b] by the given
+      amounts on each side. *)
 
   (** {2 Collisions} *)
 
