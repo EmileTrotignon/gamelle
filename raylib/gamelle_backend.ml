@@ -9,8 +9,7 @@ include Draw
 module Window = Window
 
 let run state update =
-  Raylib.set_config_flags
-    [ Raylib.ConfigFlags.Msaa_4x_hint; Raylib.ConfigFlags.Window_highdpi ];
+  Raylib.set_config_flags Raylib.ConfigFlags.(msaa_4x_hint + window_highdpi);
   Raylib.set_trace_log_level Raylib.TraceLogLevel.Warning;
   Raylib.init_window 640 640 "Gamelle";
   Raylib.set_target_fps 60;

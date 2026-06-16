@@ -55,7 +55,7 @@
    (>= 0.6))
   conf-sdl2-gfx
   (raylib
-   (>= 1.0.0))))
+   (>= 2.0.0))))
 
 (package
  (name conf-sdl2-gfx)

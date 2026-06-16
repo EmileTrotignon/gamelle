@@ -30,7 +30,7 @@ depopts: [
   "tsdl-mixer" {>= "0.6"}
   "tsdl-ttf" {>= "0.6"}
   "conf-sdl2-gfx"
-  "raylib" {>= "1.0.0"}
+  "raylib" {>= "2.0.0"}
 ]
 build: [
   ["dune" "subst"] {dev}
