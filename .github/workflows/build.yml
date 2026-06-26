@@ -43,7 +43,7 @@ jobs:
         uses: browser-actions/setup-firefox@v1
 
       - name: Install geckodriver
-        uses: browser-actions/setup-geckodriver@v1
+        uses: browser-actions/setup-geckodriver@latest
 
       - name: Test
         run: opam exec -- dune runtest
