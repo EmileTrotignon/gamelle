@@ -26,3 +26,24 @@ jobs:
 
       - name: Build
         run: opam exec -- dune build @install
+
+      # System packages needed by the screenshot tests: a virtual X server for
+      # the raylib (OpenGL) backend plus software-GL/X runtime libraries.
+      - name: Install screenshot test system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            xvfb xauth \
+            libgl1-mesa-dri libglu1-mesa \
+            libxrandr2 libxinerama1 libxcursor1 libxi6
+
+      # The browser side of the tests renders with headless Firefox driven by
+      # geckodriver.
+      - name: Install Firefox
+        uses: browser-actions/setup-firefox@v1
+
+      - name: Install geckodriver
+        uses: browser-actions/setup-geckodriver@v1
+
+      - name: Test
+        run: opam exec -- dune runtest

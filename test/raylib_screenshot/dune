@@ -1,0 +1,296 @@
+; Headless screenshot comparison tests: render a scene with both the raylib and
+; the browser backend, then promote a side-by-side and an odiff into the source
+; tree. Nothing here is built by default (a normal `dune build`/CI must not need
+; xvfb or geckodriver); each test is opt-in via its alias.
+;
+;   dune build @compare_lines        --auto-promote  ; lines, default font
+;   dune build @compare_glyph        --auto-promote  ; two glyphs, default font
+;   dune build @compare_roboto       --auto-promote  ; lines, Roboto (proportional)
+;   dune build @compare_roboto_glyph --auto-promote  ; two glyphs, Roboto
+;
+; `dune runtest` asserts that both backends predict the same text sizes (via the
+; public Text.size / Text.size_multiline) — see the size-assertion rules below.
+;
+; Both backends share one entry point each: the native [main] takes the scenario
+; as an argument; the browser [dump_js] derives it from the page filename. Native
+; and browser must be separate executables because gamelle.raylib has C stubs and
+; cannot compile to js.
+
+; One module per scenario (lines, glyph, roboto, roboto_glyph) plus shared
+; infrastructure in [common]. Embeds the Roboto font (via ppx_blob).
+
+(library
+ (name scenes)
+ (modules common lines glyph roboto roboto_glyph)
+ (libraries gamelle)
+ (preprocess
+  (pps ppx_blob))
+ (preprocessor_deps Roboto-Regular.ttf))
+
+(executable
+ (name main)
+ (modules main)
+ (libraries scenes gamelle.raylib))
+
+(executable
+ (name dump_js)
+ (modules dump_js)
+ (modes js)
+ (libraries scenes gamelle.jsoo brr))
+
+; One page per scenario, all loading the same dump_js.bc.js; the js picks its
+; scenario from the page filename.
+
+(rule
+ (target lines.html)
+ (deps scene.template.html dump_js.bc.js)
+ (action
+  (with-stdout-to
+   lines.html
+   (run
+    %{bin:gamelle}
+    html
+    --template=scene.template.html
+    --script=dump_js.bc.js))))
+
+(rule
+ (target glyph.html)
+ (deps scene.template.html dump_js.bc.js)
+ (action
+  (with-stdout-to
+   glyph.html
+   (run
+    %{bin:gamelle}
+    html
+    --template=scene.template.html
+    --script=dump_js.bc.js))))
+
+(rule
+ (target roboto.html)
+ (deps scene.template.html dump_js.bc.js)
+ (action
+  (with-stdout-to
+   roboto.html
+   (run
+    %{bin:gamelle}
+    html
+    --template=scene.template.html
+    --script=dump_js.bc.js))))
+
+(rule
+ (target roboto_glyph.html)
+ (deps scene.template.html dump_js.bc.js)
+ (action
+  (with-stdout-to
+   roboto_glyph.html
+   (run
+    %{bin:gamelle}
+    html
+    --template=scene.template.html
+    --script=dump_js.bc.js))))
+
+(alias
+ (name default))
+
+; Each comparison renders one scenario with both backends and promotes
+; <prefix>_{raylib,browser,compare,diff}.png plus the size-prediction dumps.
+
+; Test 1: lines of text, default (monospaced) font.
+
+(rule
+ (alias compare_lines)
+ (targets
+  lines_compare.png
+  lines_diff.png
+  lines_raylib.png
+  lines_browser.png
+  lines_raylib_sizes.txt
+  lines_browser_sizes.txt
+  lines_sizes_diff.txt)
+ (mode promote)
+ (deps
+  compare.sh
+  main.exe
+  lines.html
+  (file %{project_root}/test/cram/screenshot/screenshot.exe)
+  (file %{project_root}/test/cram/screenshot/dump_sizes.exe))
+ (action
+  (run
+   bash
+   compare.sh
+   ./main.exe
+   lines
+   lines.html
+   %{project_root}/test/cram/screenshot/screenshot.exe
+   %{project_root}/test/cram/screenshot/dump_sizes.exe
+   lines_)))
+
+; Test 2: two glyphs, default font.
+
+(rule
+ (alias compare_glyph)
+ (targets
+  glyph_compare.png
+  glyph_diff.png
+  glyph_raylib.png
+  glyph_browser.png
+  glyph_raylib_sizes.txt
+  glyph_browser_sizes.txt
+  glyph_sizes_diff.txt)
+ (mode promote)
+ (deps
+  compare.sh
+  main.exe
+  glyph.html
+  (file %{project_root}/test/cram/screenshot/screenshot.exe)
+  (file %{project_root}/test/cram/screenshot/dump_sizes.exe))
+ (action
+  (run
+   bash
+   compare.sh
+   ./main.exe
+   glyph
+   glyph.html
+   %{project_root}/test/cram/screenshot/screenshot.exe
+   %{project_root}/test/cram/screenshot/dump_sizes.exe
+   glyph_)))
+
+; Test 3: lines of text, Roboto (proportional, divergent metrics).
+
+(rule
+ (alias compare_roboto)
+ (targets
+  roboto_compare.png
+  roboto_diff.png
+  roboto_raylib.png
+  roboto_browser.png
+  roboto_raylib_sizes.txt
+  roboto_browser_sizes.txt
+  roboto_sizes_diff.txt)
+ (mode promote)
+ (deps
+  compare.sh
+  main.exe
+  roboto.html
+  (file %{project_root}/test/cram/screenshot/screenshot.exe)
+  (file %{project_root}/test/cram/screenshot/dump_sizes.exe))
+ (action
+  (run
+   bash
+   compare.sh
+   ./main.exe
+   roboto
+   roboto.html
+   %{project_root}/test/cram/screenshot/screenshot.exe
+   %{project_root}/test/cram/screenshot/dump_sizes.exe
+   roboto_)))
+
+; Test 4: two glyphs, Roboto.
+
+(rule
+ (alias compare_roboto_glyph)
+ (targets
+  roboto_glyph_compare.png
+  roboto_glyph_diff.png
+  roboto_glyph_raylib.png
+  roboto_glyph_browser.png
+  roboto_glyph_raylib_sizes.txt
+  roboto_glyph_browser_sizes.txt
+  roboto_glyph_sizes_diff.txt)
+ (mode promote)
+ (deps
+  compare.sh
+  main.exe
+  roboto_glyph.html
+  (file %{project_root}/test/cram/screenshot/screenshot.exe)
+  (file %{project_root}/test/cram/screenshot/dump_sizes.exe))
+ (action
+  (run
+   bash
+   compare.sh
+   ./main.exe
+   roboto_glyph
+   roboto_glyph.html
+   %{project_root}/test/cram/screenshot/screenshot.exe
+   %{project_root}/test/cram/screenshot/dump_sizes.exe
+   roboto_glyph_)))
+
+; `dune runtest` assertions: render both backends and require their public
+; Text.size / Text.size_multiline predictions to be byte-identical (sizes.sh
+; exits non-zero, printing the diff, on any mismatch). These render fresh, so
+; they need xvfb + geckodriver, but skip all PNG work.
+
+(rule
+ (alias runtest)
+ (targets t_lines_raylib.txt t_lines_browser.txt t_lines_throwaway.png)
+ (deps
+  sizes.sh
+  main.exe
+  lines.html
+  (file %{project_root}/test/cram/screenshot/dump_sizes.exe))
+ (action
+  (run
+   bash
+   sizes.sh
+   ./main.exe
+   lines
+   lines.html
+   %{project_root}/test/cram/screenshot/dump_sizes.exe
+   t_lines_)))
+
+(rule
+ (alias runtest)
+ (targets t_glyph_raylib.txt t_glyph_browser.txt t_glyph_throwaway.png)
+ (deps
+  sizes.sh
+  main.exe
+  glyph.html
+  (file %{project_root}/test/cram/screenshot/dump_sizes.exe))
+ (action
+  (run
+   bash
+   sizes.sh
+   ./main.exe
+   glyph
+   glyph.html
+   %{project_root}/test/cram/screenshot/dump_sizes.exe
+   t_glyph_)))
+
+(rule
+ (alias runtest)
+ (targets t_roboto_raylib.txt t_roboto_browser.txt t_roboto_throwaway.png)
+ (deps
+  sizes.sh
+  main.exe
+  roboto.html
+  (file %{project_root}/test/cram/screenshot/dump_sizes.exe))
+ (action
+  (run
+   bash
+   sizes.sh
+   ./main.exe
+   roboto
+   roboto.html
+   %{project_root}/test/cram/screenshot/dump_sizes.exe
+   t_roboto_)))
+
+(rule
+ (alias runtest)
+ (targets
+  t_roboto_glyph_raylib.txt
+  t_roboto_glyph_browser.txt
+  t_roboto_glyph_throwaway.png)
+ (deps
+  sizes.sh
+  main.exe
+  roboto_glyph.html
+  (file %{project_root}/test/cram/screenshot/dump_sizes.exe))
+ (action
+  (run
+   bash
+   sizes.sh
+   ./main.exe
+   roboto_glyph
+   roboto_glyph.html
+   %{project_root}/test/cram/screenshot/dump_sizes.exe
+   t_roboto_glyph_)))

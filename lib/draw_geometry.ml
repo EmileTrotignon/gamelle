@@ -109,6 +109,22 @@ module Text = struct
     List.iter (fun str -> Buffer.add_string buffer (to_string str)) li;
     of_string (Buffer.contents buffer)
 
+  (* Backend-agnostic single-line layout: place each glyph at the running pen
+     position (snapped to a whole pixel) and advance by the glyph's measured
+     width. Each backend only implements [draw_glyph] (one glyph) and [size]. *)
+  let draw ~io ?color ?font ?size ~at t =
+    let s = to_string t in
+    let x0 = Geometry.Point.x at and y0 = Geometry.Point.y at in
+    let lx = ref 0.0 in
+    Font_metrics.iter_codepoints s (fun cp ->
+        let glyph = of_string (Font_metrics.string_of_cp cp) in
+        let at = Geometry.Point.v (Float.round (x0 +. !lx)) y0 in
+        draw_glyph ~io ?color ?font ?size ~at glyph;
+        lx :=
+          !lx
+          +. Geometry.Size.width
+               (Gamelle_backend.Text.size ~io ?font ?size glyph))
+
   let draw_t = draw
   let size_t = size
   let size ~io ?font ?size t = size_t ~io ?font ?size (of_string t)

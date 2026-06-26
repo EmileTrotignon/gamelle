@@ -3,7 +3,7 @@ open Draw
 
 let ( ^ ) = append
 
-let draw ~io ?color ?font ?size ~at txt =
+let draw_glyph ~io ?color ?font ?size ~at txt =
   transform ~io;
   set_color ~io color;
   Font_.draw_at ~io ?color ?font ?size (Jstr.to_string txt) ~at

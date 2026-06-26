@@ -8,7 +8,12 @@ type sized_font = {
   codepoint_set : (int, unit) Hashtbl.t;
 }
 
-type font_s = { data : string; sizes : (int, sized_font) Hashtbl.t }
+type font_s = {
+  data : string;
+  sizes : (int, sized_font) Hashtbl.t;
+  metrics : Font_metrics.t;
+      (** shared sizing/advance metrics, see Font_metrics *)
+}
 
 type io_backend = { font : font; font_size : int }
 and io = io_backend abstract_io

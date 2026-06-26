@@ -36,7 +36,9 @@ let slice ?(start = 0) ?stop str =
 let to_string = Fun.id
 let of_string = Fun.id
 
-let draw ~io ?color ?font ?size ~at:p text =
+(* A glyph is just a (one-codepoint) string; render it with the existing
+   whole-string path. The shared layout in Draw_geometry calls this per glyph. *)
+let draw_glyph ~io ?color ?font ?size ~at:p text =
   if text <> "" then (
     let bitmap = Font_.draw ?color ?font ?size text in
     draw ~io bitmap p;
