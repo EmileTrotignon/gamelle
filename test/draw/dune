@@ -1,0 +1,44 @@
+; Headless screenshot comparison tests: render a scene with both the raylib and
+; the browser backend, then promote a side-by-side and an odiff into the source
+; tree. Nothing here is built by default (a normal `dune build`/CI must not need
+; xvfb or geckodriver); each test is opt-in via its alias.
+;
+;   dune build @compare_lines        --auto-promote  ; lines, default font
+;   dune build @compare_glyph        --auto-promote  ; two glyphs, default font
+;   dune build @compare_roboto       --auto-promote  ; lines, Roboto (proportional)
+;   dune build @compare_roboto_glyph --auto-promote  ; two glyphs, Roboto
+;
+; `dune runtest` asserts that both backends predict the same text sizes (via the
+; public Text.size / Text.size_multiline) — see the size-assertion rules below.
+;
+; Both backends share one entry point each: the native [main] takes the scenario
+; as an argument; the browser [dump_js] derives it from the page filename. Native
+; and browser must be separate executables because gamelle.raylib has C stubs and
+; cannot compile to js.
+
+; One module per scenario (lines, glyph, roboto, roboto_glyph) plus shared
+; infrastructure in [common]. Embeds the Roboto font (via ppx_blob).
+
+; One page per scenario, all loading the same dump_js.bc.js; the js picks its
+; scenario from the page filename.
+
+(rule
+ (alias draw_screenshot)
+ (targets compare.png diff.png raylib.png jsoo.png)
+ (mode promote)
+ (deps
+  screenshot.sh
+  basic/basic_bin.exe
+  basic/basic.html
+  (file %{project_root}/test/cram/screenshot/screenshot.exe))
+ (action
+  (run
+   bash
+   screenshot.sh
+   basic/basic_bin.exe
+   basic/basic.html
+   %{project_root}/test/cram/screenshot/screenshot.exe)))
+
+(cram
+ (package gamelle)
+ (deps raylib.png jsoo.png))
