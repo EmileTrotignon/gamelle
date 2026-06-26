@@ -8,6 +8,10 @@ set -euo pipefail
 RAYLIB_EXE="$1"
 HTML="$2"
 SCREENSHOT_EXE="$3"
+# Explicit font for the montage labels: the portable static ImageMagick used in
+# CI has no fontconfig, so its default font resolves to null ("unable to read
+# font `(null)'"). Passing a concrete .ttf avoids relying on system font setup.
+FONT="$4"
 
 echo $RAYLIB_EXE
 echo $HTML
@@ -50,6 +54,6 @@ odiff --antialiasing "raylib.png" browser_norm.png "diff.png" || true
 [ -f "diff.png" ] || magick -size "${W}x${H}" xc:black "diff.png"
 
 # 4. native (un-resized) side-by-side so size differences stay visible.
-magick montage -label raylib "raylib.png" -label browser "jsoo.png" \
+magick montage -font "$FONT" -label raylib "raylib.png" -label browser "jsoo.png" \
   -tile 2x1 -geometry +6+6 -background gray "compare.png"
 

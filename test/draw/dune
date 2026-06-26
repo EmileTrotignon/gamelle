@@ -30,14 +30,16 @@
   screenshot.sh
   basic/basic_bin.exe
   basic/basic.html
-  (file %{project_root}/test/cram/screenshot/screenshot.exe))
+  (file %{project_root}/test/cram/screenshot/screenshot.exe)
+  (file %{project_root}/data/FreeMono.ttf))
  (action
   (run
    bash
    screenshot.sh
    basic/basic_bin.exe
    basic/basic.html
-   %{project_root}/test/cram/screenshot/screenshot.exe)))
+   %{project_root}/test/cram/screenshot/screenshot.exe
+   %{project_root}/data/FreeMono.ttf)))
 
 (cram
  (package gamelle)
