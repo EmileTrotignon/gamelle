@@ -178,7 +178,12 @@ module Text = struct
       (maxw, Point.v startx (cpos.y +. hline))
     in
     let maxw, end_pos = List.fold_left print_line (0., pos) lines in
-    Size.v maxw end_pos.y
+    (* [end_pos.y] advanced by a full [hline] (line height + interline) past the
+       last line's top. The bounding box only needs the last line's actual height
+       there, not another interline gap, so drop the trailing [interline] —
+       otherwise (with the default negative [interline]) the box is too short and
+       the last line's descenders spill out below it. *)
+    Size.v maxw (end_pos.y -. interline)
 
   let size_multiline ~io ?width ?interline ?font ?size str =
     size_multiline_t ~io ?width ?interline ?font ?size (of_string str)

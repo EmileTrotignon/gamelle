@@ -12,7 +12,7 @@ let lines =
   ]
 
 let sizes = [ 16; 20; 28 ]
-let paragraph = "The quick brown fox jumps over the lazy dog. Pack my box."
+let paragraph = "The quick brown fox jumps over the lazy dog. Pack my box. The quick brown fox jumps over the lazy dog. Pack my box."
 
 let render ?font ~io () =
   let io = Common.setup ~io Common.width Common.height in
