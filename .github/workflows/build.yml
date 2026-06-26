@@ -57,5 +57,12 @@ jobs:
       - name: Install geckodriver
         uses: browser-actions/setup-geckodriver@latest
 
+      # The screenshot tests compare the two backends with `odiff`; the prebuilt
+      # binary ships as the `odiff-bin` npm package (Node is preinstalled).
+      - name: Install odiff
+        run: |
+          npm install -g odiff-bin
+          odiff --version
+
       - name: Test
         run: opam exec -- dune runtest
