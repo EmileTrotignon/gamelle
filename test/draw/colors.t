@@ -18,7 +18,8 @@ Box.fill (touch BR): Color.violet          = #EE82EEFF
 Text.draw:           Color.crimson         = #DC143CFF
 Bitmap.draw:         Assets.camel (camel.png, mixed colors)
 
-  $ magick jsoo.png txt:- | awk 'NR>1{print $3}' | sort | uniq -c | sort -rn | awk '$1 >= 500' > jsoo_colors
+  $ if command -v magick > /dev/null; then IM=magick; else IM=convert; fi
+  $ $IM jsoo.png txt:- | awk 'NR>1{print $3}' | sort | uniq -c | sort -rn | awk '$1 >= 500' > jsoo_colors
   $ cat jsoo_colors
    321564 #282828FF
     64172 #0000FFFF
@@ -32,7 +33,7 @@ Bitmap.draw:         Assets.camel (camel.png, mixed colors)
       549 #CAAF83FF
       526 #2A2AD5FF
 
-  $ magick raylib.png txt:- | awk 'NR>1{print $3}' | sort | uniq -c | sort -rn | awk '$1 >= 500' > raylib_colors
+  $ $IM raylib.png txt:- | awk 'NR>1{print $3}' | sort | uniq -c | sort -rn | awk '$1 >= 500' > raylib_colors
   $ cat raylib_colors
    329714 #282828FF
     64680 #0000FFFF
@@ -53,8 +54,3 @@ $ cp image.png /tmp
 $ cp diff.png /tmp
 $ firefox /tmp/image.png
 $ firefox /tmp/diff.png
-
-
-  $ kill $GECKOPID
-  kill: usage: kill [-s sigspec | -n signum | -sigspec] pid | jobspec ... or kill -l [sigspec]
-  [2]
