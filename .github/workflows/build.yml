@@ -22,7 +22,7 @@ jobs:
           ocaml-compiler: "5.4"
 
       - name: Install dependencies
-        run: opam install ./gamelle-all.opam --deps-only
+        run: opam install ./gamelle-all.opam --deps-only --with-test
 
       - name: Build
         run: opam exec -- dune build @install
