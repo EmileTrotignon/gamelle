@@ -35,14 +35,14 @@ Bitmap.draw:         Assets.camel (camel.png, mixed colors)
 
   $ $IM raylib.png txt:- | awk 'NR>1{print $3}' | sort | uniq -c | sort -rn | awk '$1 >= 500' > raylib_colors
   $ cat raylib_colors
-   329714 #282828FF
-    64680 #0000FFFF
+   321155 #282828FF
+    64172 #0000FFFF
     16236 #FF7F50FF
     16236 #EE82EEFF
     16236 #4B0082FF
     16236 #008080FF
     11596 #FF0000FF
-     1022 #FFFF00FF
+     6990 #FF00FFFF
       650 #CAAF83FF
       610 #C5A97FFF
 

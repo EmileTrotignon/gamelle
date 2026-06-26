@@ -28,61 +28,95 @@ let draw ~io bmp p =
   Raylib.draw_texture_pro bmp.Bitmap.texture src dst (v2 0. 0.) angle
     Raylib.Color.white
 
-let draw_line ~io ?color segment =
-  let p0, p1 = Segment.to_tuple segment in
-  let x0, y0 = project ~io p0 in
-  let x1, y1 = project ~io p1 in
-  let color = get_color ~io color in
-  with_scissor ~io @@ fun () ->
-  Raylib.draw_line_ex (v2 x0 y0) (v2 x1 y1) 1. color
+(* [draw_line], [draw_poly] and [draw_rect] are defined after the shader helpers
+   below: their straight edges are antialiased with an SDF segment shader so they
+   match the browser backend (which strokes with antialiasing). *)
 
-let project_points ~io pts =
-  let n = List.length pts in
-  let arr = Raylib.CArray.make Raylib.Vector2.t n in
-  pts
-  |> List.iteri begin fun i p ->
-      let x, y = project ~io p in
-      Raylib.CArray.set arr i (v2 x y)
-    end;
-  (arr, n)
+(* Signed area of a polygon (shoelace). Sign indicates winding order. *)
+let signed_area pts =
+  let n = Array.length pts in
+  let a = ref 0. in
+  for i = 0 to n - 1 do
+    let x0, y0 = pts.(i) in
+    let x1, y1 = pts.((i + 1) mod n) in
+    a := !a +. ((x0 *. y1) -. (x1 *. y0))
+  done;
+  !a /. 2.
 
-let draw_poly ~io ?color poly =
-  let pts = Polygon.points poly in
-  let n = List.length pts in
-  if n >= 2 then begin
-    let color = get_color ~io color in
-    let arr = Raylib.CArray.make Raylib.Vector2.t (n + 1) in
-    pts
-    |> List.iteri begin fun i p ->
-        let x, y = project ~io p in
-        Raylib.CArray.set arr i (v2 x y)
-      end;
-    let x, y = project ~io (List.hd pts) in
-    Raylib.CArray.set arr n (v2 x y);
-    with_scissor ~io @@ fun () ->
-    Raylib.draw_line_strip (Raylib.CArray.start arr) (n + 1) color
+let point_in_triangle px py (ax, ay) (bx, by) (cx, cy) =
+  let d1 = ((px -. bx) *. (ay -. by)) -. ((ax -. bx) *. (py -. by)) in
+  let d2 = ((px -. cx) *. (by -. cy)) -. ((bx -. cx) *. (py -. cy)) in
+  let d3 = ((px -. ax) *. (cy -. ay)) -. ((cx -. ax) *. (py -. ay)) in
+  let has_neg = d1 < 0. || d2 < 0. || d3 < 0. in
+  let has_pos = d1 > 0. || d2 > 0. || d3 > 0. in
+  not (has_neg && has_pos)
+
+(* Ear-clipping triangulation of a simple polygon (convex or concave). Returns
+   a list of triangles as point triples, in the same coordinates as [pts]. *)
+let triangulate pts =
+  let pts = Array.of_list pts in
+  let n = Array.length pts in
+  if n < 3 then []
+  else begin
+    let orient = if signed_area pts >= 0. then 1. else -1. in
+    let cross (ax, ay) (bx, by) (cx, cy) =
+      ((bx -. ax) *. (cy -. ay)) -. ((cx -. ax) *. (by -. ay))
+    in
+    let is_ear remaining ip ic inx =
+      let a = pts.(ip) and b = pts.(ic) and c = pts.(inx) in
+      (* Convex corner (matching the polygon orientation) with no other vertex
+         falling inside the candidate ear triangle. *)
+      cross a b c *. orient > 0.
+      && List.for_all
+           (fun j ->
+             j = ip || j = ic || j = inx
+             ||
+             let px, py = pts.(j) in
+             not (point_in_triangle px py a b c))
+           remaining
+    in
+    let rec loop remaining acc =
+      match remaining with
+      | [ a; b; c ] -> (pts.(a), pts.(b), pts.(c)) :: acc
+      | _ ->
+          let arr = Array.of_list remaining in
+          let m = Array.length arr in
+          let rec find i =
+            if i >= m then
+              (* No ear found (degenerate input): clip a vertex anyway so we
+                 always make progress and terminate. *)
+              (arr.(0), (pts.(arr.(m - 1)), pts.(arr.(0)), pts.(arr.(1))))
+            else
+              let ip = arr.((i + m - 1) mod m) in
+              let ic = arr.(i) in
+              let inx = arr.((i + 1) mod m) in
+              if is_ear remaining ip ic inx then
+                (ic, (pts.(ip), pts.(ic), pts.(inx)))
+              else find (i + 1)
+          in
+          let clipped, tri = find 0 in
+          loop (List.filter (fun j -> j <> clipped) remaining) (tri :: acc)
+    in
+    loop (List.init n (fun i -> i)) []
   end
+
+(* raylib culls triangles whose vertices are not counter-clockwise, so emit each
+   triangle with a consistent winding regardless of the input orientation. *)
+let draw_triangle_ccw color (ax, ay) (bx, by) (cx, cy) =
+  let area = ((bx -. ax) *. (cy -. ay)) -. ((cx -. ax) *. (by -. ay)) in
+  let va = v2 ax ay and vb = v2 bx by and vc = v2 cx cy in
+  if area > 0. then Raylib.draw_triangle va vc vb color
+  else Raylib.draw_triangle va vb vc color
 
 let fill_poly ~io ?color poly =
   let pts = Polygon.points poly in
-  let n = List.length pts in
-  if n >= 3 then
+  if List.length pts >= 3 then begin
     let color = get_color ~io color in
-    let arr, n = project_points ~io pts in
+    let pts = List.map (project ~io) pts in
+    let tris = triangulate pts in
     with_scissor ~io @@ fun () ->
-    Raylib.draw_triangle_fan (Raylib.CArray.start arr) n color
-
-let draw_rect ~io ?color rect =
-  draw_poly ~io ?color
-    begin
-      Polygon.v
-        [
-          Box.top_left rect;
-          Box.top_right rect;
-          Box.bottom_right rect;
-          Box.bottom_left rect;
-        ]
-    end
+    List.iter (fun (a, b, c) -> draw_triangle_ccw color a b c) tris
+  end
 
 let fill_rect ~io ?color rect =
   let x0, y0 = project ~io (Box.top_left rect) in
@@ -240,3 +274,119 @@ let fill_circle ~io ?color circle =
   Raylib.begin_shader_mode s.shader;
   Raylib.draw_rectangle qx qy qs qs Raylib.Color.white;
   Raylib.end_shader_mode ()
+
+(* --- SDF antialiased line shader --- *)
+
+let fs_line =
+  {glsl|
+#version 330
+precision mediump float;
+uniform vec2 pa;
+uniform vec2 pb;
+uniform float halfWidth;
+uniform vec4 lineColor;
+uniform float screenHeight;
+out vec4 finalColor;
+float sdSegment(vec2 p, vec2 a, vec2 b) {
+    vec2 ap = p - a;
+    vec2 ab = b - a;
+    float h = clamp(dot(ap, ab) / dot(ab, ab), 0.0, 1.0);
+    return length(ap - ab * h);
+}
+void main() {
+    vec2 pos = vec2(gl_FragCoord.x, screenHeight - gl_FragCoord.y);
+    float d = sdSegment(pos, pa, pb) - halfWidth;
+    float alpha = 1.0 - smoothstep(-0.5, 0.5, d);
+    finalColor = vec4(lineColor.rgb, lineColor.a * alpha);
+}
+|glsl}
+
+type line_shader = {
+  l_shader : Raylib.Shader.t;
+  l_pa : Raylib.ShaderLoc.t;
+  l_pb : Raylib.ShaderLoc.t;
+  l_half : Raylib.ShaderLoc.t;
+  l_color : Raylib.ShaderLoc.t;
+  l_screen_height : Raylib.ShaderLoc.t;
+}
+
+let line_shader : line_shader option ref = ref None
+
+let get_line_shader () =
+  match !line_shader with
+  | Some s -> s
+  | None ->
+      let shader = Raylib.load_shader_from_memory vs fs_line in
+      let s =
+        {
+          l_shader = shader;
+          l_pa = Raylib.get_shader_location shader "pa";
+          l_pb = Raylib.get_shader_location shader "pb";
+          l_half = Raylib.get_shader_location shader "halfWidth";
+          l_color = Raylib.get_shader_location shader "lineColor";
+          l_screen_height = Raylib.get_shader_location shader "screenHeight";
+        }
+      in
+      line_shader := Some s;
+      s
+
+(* Draw an antialiased segment between two already-projected screen points. *)
+let aa_segment color (x0, y0) (x1, y1) =
+  let s = get_line_shader () in
+  let half_width = 0.5 in
+  set_vec2 s.l_shader s.l_pa x0 y0;
+  set_vec2 s.l_shader s.l_pb x1 y1;
+  set_float s.l_shader s.l_half half_width;
+  let cr = float (Raylib.Color.r color) /. 255.0 in
+  let cg = float (Raylib.Color.g color) /. 255.0 in
+  let cb = float (Raylib.Color.b color) /. 255.0 in
+  let ca = float (Raylib.Color.a color) /. 255.0 in
+  set_vec4 s.l_shader s.l_color cr cg cb ca;
+  set_float s.l_shader s.l_screen_height (float (Raylib.get_render_height ()));
+  let pad = half_width +. 2.0 in
+  let qx = int_of_float (Float.min x0 x1 -. pad) in
+  let qy = int_of_float (Float.min y0 y1 -. pad) in
+  let qw = int_of_float (Float.abs (x1 -. x0) +. (2.0 *. pad)) in
+  let qh = int_of_float (Float.abs (y1 -. y0) +. (2.0 *. pad)) in
+  Raylib.begin_shader_mode s.l_shader;
+  Raylib.draw_rectangle qx qy qw qh Raylib.Color.white;
+  Raylib.end_shader_mode ()
+
+let draw_line ~io ?color segment =
+  let p0, p1 = Segment.to_tuple segment in
+  let p0 = project ~io p0 in
+  let p1 = project ~io p1 in
+  let color = get_color ~io color in
+  with_scissor ~io @@ fun () -> aa_segment color p0 p1
+
+let draw_poly ~io ?color poly =
+  let pts = Polygon.points poly in
+  if List.length pts >= 2 then begin
+    let color = get_color ~io color in
+    let pts = List.map (project ~io) pts in
+    let segments =
+      match pts with
+      | [] -> []
+      | first :: _ ->
+          let rec pairs = function
+            | a :: (b :: _ as rest) -> (a, b) :: pairs rest
+            | [ last ] -> [ (last, first) ]
+            | [] -> []
+          in
+          pairs pts
+    in
+    with_scissor ~io @@ fun () ->
+    List.iter (fun (a, b) -> aa_segment color a b) segments
+  end
+
+let draw_rect ~io ?color rect =
+  draw_poly ~io ?color
+    begin
+      Polygon.v
+        [
+          Box.top_left rect;
+          Box.top_right rect;
+          Box.bottom_right rect;
+          Box.bottom_left rect;
+        ]
+    end
