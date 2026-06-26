@@ -23,7 +23,7 @@
  (js_of_ocaml
   ;(flags
   ; (:standard --effects=cps))
-   )
+  )
  (libraries basic gamelle.jsoo))
 
 (rule

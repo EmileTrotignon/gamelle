@@ -74,10 +74,12 @@ let () =
   label ~io b "Touching boxes";
   let bx = Box.x_left b +. 10. and by = Box.y_top b +. 25. in
   let bw = (cell_w -. 20.) /. 2. and bh = (cell_h -. 35.) /. 2. in
-  Box.fill ~io ~color:Color.teal   (Box.v (Point.v bx           by        ) (Size.v bw bh));
-  Box.fill ~io ~color:Color.coral  (Box.v (Point.v (bx +. bw)   by        ) (Size.v bw bh));
-  Box.fill ~io ~color:Color.indigo (Box.v (Point.v bx           (by +. bh)) (Size.v bw bh));
-  Box.fill ~io ~color:Color.violet (Box.v (Point.v (bx +. bw)   (by +. bh)) (Size.v bw bh));
+  Box.fill ~io ~color:Color.teal (Box.v (Point.v bx by) (Size.v bw bh));
+  Box.fill ~io ~color:Color.coral (Box.v (Point.v (bx +. bw) by) (Size.v bw bh));
+  Box.fill ~io ~color:Color.indigo
+    (Box.v (Point.v bx (by +. bh)) (Size.v bw bh));
+  Box.fill ~io ~color:Color.violet
+    (Box.v (Point.v (bx +. bw) (by +. bh)) (Size.v bw bh));
 
   (* (2,1) Bitmap + text *)
   let b = cell 2 1 in
