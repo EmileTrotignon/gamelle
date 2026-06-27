@@ -4,6 +4,7 @@
 #   $4 browser screenshot tool   $5 browser size-dump tool
 #   $6 output filename prefix (e.g. "glyph_")   $7 font for montage labels
 #   $8 raylib external-screenshot helper
+#   $9 geckodriver port (unique per parallel run)
 set -euo pipefail
 
 SHOT_EXE="$1"
@@ -18,44 +19,44 @@ P="${6:-}"
 FONT="$7"
 # Helper that runs a raylib program under Xvfb and captures its window.
 SHOT_HELPER="$8"
-
-# Serialize concurrent runs (e.g. building both comparison aliases at once):
-# they would otherwise fight over the X display and the geckodriver port.
-exec 9>/tmp/gamelle_screenshot.lock
-flock 9
+# Unique geckodriver port for this run, so the comparison rules can run in
+# parallel without colliding. The Xvfb server number is derived from it.
+PORT="$9"
+SERVERNUM=$((PORT - 4344))
 
 # 1. browser, rendered headlessly with firefox via geckodriver. Its canvas is
 # sized to the scene's drawing box, so it also tells us how big to capture the
 # raylib window. Only the geckodriver we start is ever killed (it cleans up its
 # own firefox children); we never touch other firefox processes.
-geckodriver --port 4444 </dev/null >/dev/null 2>&1 &
+geckodriver --port "$PORT" </dev/null >/dev/null 2>&1 &
 GECKO=$!
 trap 'kill "$GECKO" 2>/dev/null || true' EXIT
 # Wait for the driver to bind its port before connecting.
 for _ in $(seq 1 40); do
-  ss -ltn 2>/dev/null | grep -q ':4444 ' && break
+  ss -ltn 2>/dev/null | grep -q ":${PORT} " && break
   sleep 0.5
 done
 # screenshot.exe / dump_sizes.exe build file://$PWD/$HTML, so $HTML must be
-# relative to here.
-"$SCREENSHOT_EXE" "$HTML" >browser_raw.png
-"$DUMP_EXE" "$HTML" >"${P}browser_sizes.txt"
+# relative to here. Intermediate files are prefixed so parallel runs in this same
+# directory do not clobber each other.
+"$SCREENSHOT_EXE" "$HTML" "$PORT" >"${P}browser_raw.png"
+"$DUMP_EXE" "$HTML" "$PORT" >"${P}browser_sizes.txt"
 # The element screenshot includes the 1px canvas border; crop it off.
-magick browser_raw.png -shave 1x1 "${P}browser.png"
+magick "${P}browser_raw.png" -shave 1x1 "${P}browser.png"
 read -r W H < <(magick identify -format '%w %h\n' "${P}browser.png")
 
 # 2. raylib, captured externally (the backend has no screenshot code) at the same
 # size as the browser canvas. The program still records its Text.size
 # predictions to GAMELLE_SIZE_LOG.
 GAMELLE_SIZE_LOG="${P}raylib_sizes.txt" \
-  bash "$SHOT_HELPER" "${P}raylib.png" "$W" "$H" "$SHOT_EXE" "$SCENARIO"
+  bash "$SHOT_HELPER" "${P}raylib.png" "$W" "$H" "$SERVERNUM" "$SHOT_EXE" "$SCENARIO"
 
 # 3. odiff (on size-matched copies; both should already be identical).
 # --antialiasing ignores anti-aliased edge pixels: stb (raylib) and firefox
 # rasterise glyph edges ~1px differently, which is unavoidable and would
 # otherwise swamp the real signal (glyph position/size/advance misalignment).
-magick "${P}browser.png" -resize "${W}x${H}!" browser_norm.png
-odiff --antialiasing "${P}raylib.png" browser_norm.png "${P}diff.png" || true
+magick "${P}browser.png" -resize "${W}x${H}!" "${P}browser_norm.png"
+odiff "${P}raylib.png" "${P}browser_norm.png" "${P}diff.png" || true
 [ -f "${P}diff.png" ] || magick -size "${W}x${H}" xc:black "${P}diff.png"
 
 # 4. native (un-resized) side-by-side so size differences stay visible.

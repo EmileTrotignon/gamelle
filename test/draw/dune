@@ -41,7 +41,8 @@
    basic/basic.html
    %{project_root}/test/cram/screenshot/screenshot.exe
    %{project_root}/data/FreeMono.ttf
-   %{project_root}/test/raylib_screenshot.sh)))
+   %{project_root}/test/raylib_screenshot.sh
+   4444)))
 
 (cram
  (package gamelle)

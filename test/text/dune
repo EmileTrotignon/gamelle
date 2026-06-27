@@ -127,7 +127,8 @@
    %{project_root}/test/cram/screenshot/dump_sizes.exe
    lines_
    %{project_root}/data/FreeMono.ttf
-   %{project_root}/test/raylib_screenshot.sh)))
+   %{project_root}/test/raylib_screenshot.sh
+   4445)))
 
 ; Test 2: two glyphs, default font.
 
@@ -161,7 +162,8 @@
    %{project_root}/test/cram/screenshot/dump_sizes.exe
    glyph_
    %{project_root}/data/FreeMono.ttf
-   %{project_root}/test/raylib_screenshot.sh)))
+   %{project_root}/test/raylib_screenshot.sh
+   4446)))
 
 ; Test 3: lines of text, Roboto (proportional, divergent metrics).
 
@@ -195,7 +197,8 @@
    %{project_root}/test/cram/screenshot/dump_sizes.exe
    roboto_
    %{project_root}/data/FreeMono.ttf
-   %{project_root}/test/raylib_screenshot.sh)))
+   %{project_root}/test/raylib_screenshot.sh
+   4447)))
 
 ; Test 4: two glyphs, Roboto.
 
@@ -229,7 +232,8 @@
    %{project_root}/test/cram/screenshot/dump_sizes.exe
    roboto_glyph_
    %{project_root}/data/FreeMono.ttf
-   %{project_root}/test/raylib_screenshot.sh)))
+   %{project_root}/test/raylib_screenshot.sh
+   4448)))
 
 (cram
  (package gamelle)
