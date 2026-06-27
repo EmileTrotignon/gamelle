@@ -2,7 +2,7 @@
 # Render the shared scene with both backends and compare:
 #   $1 raylib executable   $2 scenario name   $3 html page
 #   $4 browser screenshot tool   $5 browser size-dump tool
-#   $6 output filename prefix (e.g. "glyph_")
+#   $6 output filename prefix (e.g. "glyph_")   $7 font for montage labels
 set -euo pipefail
 
 SHOT_EXE="$1"
@@ -11,6 +11,10 @@ HTML="$3"
 SCREENSHOT_EXE="$4"
 DUMP_EXE="$5"
 P="${6:-}"
+# Explicit font for the montage labels: the portable static ImageMagick used in
+# CI has no fontconfig, so its default font resolves to null ("unable to read
+# font `(null)'"). Passing a concrete .ttf avoids relying on system font setup.
+FONT="$7"
 
 # Serialize concurrent runs (e.g. building both comparison aliases at once):
 # they would otherwise fight over the X display and the geckodriver port.
@@ -52,7 +56,7 @@ odiff --antialiasing "${P}raylib.png" browser_norm.png "${P}diff.png" || true
 [ -f "${P}diff.png" ] || magick -size "${W}x${H}" xc:black "${P}diff.png"
 
 # 4. native (un-resized) side-by-side so size differences stay visible.
-magick montage -label raylib "${P}raylib.png" -label browser "${P}browser.png" \
+magick montage -font "$FONT" -label raylib "${P}raylib.png" -label browser "${P}browser.png" \
   -tile 2x1 -geometry +6+6 -background gray "${P}compare.png"
 
 # 5. unified diff of the two size-prediction dumps (any disagreement shows up as

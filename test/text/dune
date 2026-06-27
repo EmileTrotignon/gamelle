@@ -113,7 +113,8 @@
   main.exe
   lines.html
   (file %{project_root}/test/cram/screenshot/screenshot.exe)
-  (file %{project_root}/test/cram/screenshot/dump_sizes.exe))
+  (file %{project_root}/test/cram/screenshot/dump_sizes.exe)
+  (file %{project_root}/data/FreeMono.ttf))
  (action
   (run
    bash
@@ -123,7 +124,8 @@
    lines.html
    %{project_root}/test/cram/screenshot/screenshot.exe
    %{project_root}/test/cram/screenshot/dump_sizes.exe
-   lines_)))
+   lines_
+   %{project_root}/data/FreeMono.ttf)))
 
 ; Test 2: two glyphs, default font.
 
@@ -143,7 +145,8 @@
   main.exe
   glyph.html
   (file %{project_root}/test/cram/screenshot/screenshot.exe)
-  (file %{project_root}/test/cram/screenshot/dump_sizes.exe))
+  (file %{project_root}/test/cram/screenshot/dump_sizes.exe)
+  (file %{project_root}/data/FreeMono.ttf))
  (action
   (run
    bash
@@ -153,7 +156,8 @@
    glyph.html
    %{project_root}/test/cram/screenshot/screenshot.exe
    %{project_root}/test/cram/screenshot/dump_sizes.exe
-   glyph_)))
+   glyph_
+   %{project_root}/data/FreeMono.ttf)))
 
 ; Test 3: lines of text, Roboto (proportional, divergent metrics).
 
@@ -173,7 +177,8 @@
   main.exe
   roboto.html
   (file %{project_root}/test/cram/screenshot/screenshot.exe)
-  (file %{project_root}/test/cram/screenshot/dump_sizes.exe))
+  (file %{project_root}/test/cram/screenshot/dump_sizes.exe)
+  (file %{project_root}/data/FreeMono.ttf))
  (action
   (run
    bash
@@ -183,7 +188,8 @@
    roboto.html
    %{project_root}/test/cram/screenshot/screenshot.exe
    %{project_root}/test/cram/screenshot/dump_sizes.exe
-   roboto_)))
+   roboto_
+   %{project_root}/data/FreeMono.ttf)))
 
 ; Test 4: two glyphs, Roboto.
 
@@ -203,7 +209,8 @@
   main.exe
   roboto_glyph.html
   (file %{project_root}/test/cram/screenshot/screenshot.exe)
-  (file %{project_root}/test/cram/screenshot/dump_sizes.exe))
+  (file %{project_root}/test/cram/screenshot/dump_sizes.exe)
+  (file %{project_root}/data/FreeMono.ttf))
  (action
   (run
    bash
@@ -213,7 +220,8 @@
    roboto_glyph.html
    %{project_root}/test/cram/screenshot/screenshot.exe
    %{project_root}/test/cram/screenshot/dump_sizes.exe
-   roboto_glyph_)))
+   roboto_glyph_
+   %{project_root}/data/FreeMono.ttf)))
 
 (cram
  (package gamelle)
