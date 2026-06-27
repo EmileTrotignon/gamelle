@@ -40,8 +40,9 @@ let boxed ?(border = Gruvbox.Light.fg) ?(bg = Gruvbox.Light.bg) ?(pad = 10.0) ui
     fn =
   over ui @@ fun () ->
   draw ui (fun ~io box ->
-      Box.fill ~io ~color:bg box;
-      Box.draw ~io ~color:border box);
+    let radius = 4. in
+      Box.fill_rounded ~io ~color:bg ~radius box;
+      Box.draw_rounded ~io ~color:border ~radius box);
   padding ui pad fn
 
 module Button_state = Ui_backend.State (struct
@@ -90,12 +91,13 @@ let button ui text =
 
 let draw_checkbox ui checked state =
   draw ui ~min_width:30.0 ~min_height:30.0 @@ fun ~io box ->
-  Box.fill ~io ~color:Gruvbox.Light.bg box;
-  Box.draw ~io ~color:Gruvbox.Light.fg box;
+    let radius = 4. in
+  Box.fill_rounded ~io ~color:Gruvbox.Light.bg ~radius box;
+  Box.draw_rounded ~io ~color:Gruvbox.Light.fg ~radius box;
   let p = 4.0 in
   if checked || state <> `normal then
     let color = if checked then Gruvbox.Light.blue else Gruvbox.Light.bg2 in
-    Box.fill ~io ~color (Box.shrink ~left:p ~right:p ~top:p ~bottom:p box)
+    Box.fill_rounded ~io ~color ~radius (Box.shrink ~left:p ~right:p ~top:p ~bottom:p box)
 
 let checkbox ui text checked =
   on_click ui @@ fun state ->
