@@ -9,7 +9,8 @@ let v center radius ~start ~stop =
   if radius < 0.0 then invalid_arg "Arc.v: negative radius";
   { center; radius; start_angle = start; end_angle = stop }
 
-let of_circle ~start ~stop c = v (Circle.center c) (Circle.radius c) ~start ~stop
+let of_circle ~start ~stop c =
+  v (Circle.center c) (Circle.radius c) ~start ~stop
 
 let center { center; _ } = center
 let radius { radius; _ } = radius
@@ -18,7 +19,6 @@ let end_angle { end_angle; _ } = end_angle
 
 (* The signed angular span of the arc, in radians. *)
 let angle { start_angle; end_angle; _ } = end_angle -. start_angle
-
 let translate vec t = { t with center = Point.translate t.center vec }
 let map_center f t = { t with center = f t.center }
 

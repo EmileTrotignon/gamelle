@@ -132,8 +132,7 @@ let rounded_rect_points ~radius box =
   let yt = Box.y_top box and yb = Box.y_bottom box in
   let pi = 4.0 *. atan 1.0 in
   let corner cx cy start =
-    Arc.to_points
-      (Arc.v (Point.v cx cy) r ~start ~stop:(start +. (pi /. 2.0)))
+    Arc.to_points (Arc.v (Point.v cx cy) r ~start ~stop:(start +. (pi /. 2.0)))
   in
   Polygon.v
     (List.concat
