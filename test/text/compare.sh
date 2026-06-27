@@ -41,8 +41,11 @@ done
 # directory do not clobber each other.
 "$SCREENSHOT_EXE" "$HTML" "$PORT" >"${P}browser_raw.png"
 "$DUMP_EXE" "$HTML" "$PORT" >"${P}browser_sizes.txt"
-# The element screenshot includes the 1px canvas border; crop it off.
-magick "${P}browser_raw.png" -shave 1x1 "${P}browser.png"
+# The element screenshot includes the 1px canvas border; crop it off. -strip (here
+# and below) drops the date/tIME chunks ImageMagick stamps from the file mtime,
+# which would otherwise make every promoted PNG differ in git even when the pixels
+# are unchanged. (odiff's own diff.png carries no such chunks.)
+magick "${P}browser_raw.png" -shave 1x1 -strip "${P}browser.png"
 read -r W H < <(magick identify -format '%w %h\n' "${P}browser.png")
 
 # 2. raylib, captured externally (the backend has no screenshot code) at the same
@@ -54,11 +57,11 @@ GAMELLE_SIZE_LOG="${P}raylib_sizes.txt" \
 # 3. odiff (on size-matched copies; both should already be identical modulo AA).
 magick "${P}browser.png" -resize "${W}x${H}!" "${P}browser_norm.png"
 odiff "${P}raylib.png" "${P}browser_norm.png" "${P}diff.png" || true
-[ -f "${P}diff.png" ] || magick -size "${W}x${H}" xc:black "${P}diff.png"
+[ -f "${P}diff.png" ] || magick -size "${W}x${H}" xc:black -strip "${P}diff.png"
 
 # 4. native (un-resized) side-by-side so size differences stay visible.
 magick montage -font "$FONT" -label raylib "${P}raylib.png" -label browser "${P}browser.png" \
-  -tile 2x1 -geometry +6+6 -background gray "${P}compare.png"
+  -tile 2x1 -geometry +6+6 -background gray -strip "${P}compare.png"
 
 # 5. unified diff of the two size-prediction dumps (any disagreement shows up as
 # changed width/height values).

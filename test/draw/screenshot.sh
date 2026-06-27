@@ -35,7 +35,7 @@ done
 # relative to here.
 "$SCREENSHOT_EXE" "$HTML" "$PORT" >browser_raw.png
 # The element screenshot includes the 1px canvas border; crop it off.
-magick browser_raw.png -shave 1x1 "jsoo.png"
+magick browser_raw.png -shave 1x1 -strip "jsoo.png"
 read -r W H < <(magick identify -format '%w %h\n' "jsoo.png")
 
 # 2. raylib, captured externally (the backend has no screenshot code) at the same
@@ -45,9 +45,12 @@ bash "$SHOT_HELPER" raylib.png "$W" "$H" "$SERVERNUM" "$RAYLIB_EXE"
 # 3. odiff (on size-matched copies; both should already be identical modulo AA).
 magick "jsoo.png" -resize "${W}x${H}!" browser_norm.png
 odiff "raylib.png" browser_norm.png "diff.png" || true
-[ -f "diff.png" ] || magick -size "${W}x${H}" xc:black "diff.png"
+[ -f "diff.png" ] || magick -size "${W}x${H}" xc:black -strip "diff.png"
 
 # 4. native (un-resized) side-by-side so size differences stay visible.
+# -strip everywhere a committed PNG is written: ImageMagick stamps date/tIME
+# chunks from the file mtime, which would make every promoted PNG differ in git
+# even when the pixels are unchanged. (odiff's own diff.png has no such chunks.)
 magick montage -font "$FONT" -label raylib "raylib.png" -label browser "jsoo.png" \
-  -tile 2x1 -geometry +6+6 -background gray "compare.png"
+  -tile 2x1 -geometry +6+6 -background gray -strip "compare.png"
 

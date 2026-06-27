@@ -55,10 +55,12 @@ GAMELLE_NO_AUDIO=1 \
     # Crop the window region out of the live framebuffer. Xvfb writes screen 0 to
     # this XWD file. Force RGBA output (PNG32): the browser PNGs have an alpha
     # channel, so the colour-comparison cram tests expect 8-digit #RRGGBBAA
-    # values from both.
+    # values from both. -strip drops the timestamp/date chunks ImageMagick stamps
+    # from the file mtime, which otherwise make every promoted PNG differ in git
+    # even when the pixels are identical.
     capture() {
       magick "xwd:$fbdir/Xvfb_screen0" -crop "${w}x${h}+${off}+${off}" +repage \
-        -alpha set "PNG32:$out"
+        -alpha set -strip "PNG32:$out"
     }
 
     # Poll until the captured region has content. A blank/black frame (the window
