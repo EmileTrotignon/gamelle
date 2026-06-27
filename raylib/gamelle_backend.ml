@@ -44,14 +44,15 @@ let run state update =
     let io = { io with view = Transform.scale dpi_scale io.view } in
     state := update ~io !state;
     Window.finalize_frame ~io;
-    (match screenshot_path with
+    begin match screenshot_path with
     | Some path when !clock_ref >= screenshot_frame ->
         (* Flush the batched draw calls to the framebuffer before reading it
            back, then capture before [end_drawing] swaps buffers. *)
         Raylib.Rlgl.draw_render_batch_active ();
         Raylib.take_screenshot path;
         running := false
-    | _ -> if screenshot_path = None then Sound.update_current_music ());
+    | _ -> if screenshot_path = None then Sound.update_current_music ()
+    end;
     Raylib.end_drawing ()
   done;
   if screenshot_path = None then begin
