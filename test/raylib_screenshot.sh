@@ -15,6 +15,13 @@
 # (W x H) but the top-left corner stays put. So on a SCREEN x SCREEN display the
 # window sits at ((SCREEN-INIT)/2, (SCREEN-INIT)/2) with size W x H. We pick a
 # screen big enough for that rectangle to fit fully, then crop it back out.
+#
+# Timing: rather than capturing once after a fixed sleep, we poll the framebuffer
+# until the cropped window region actually has content. A single fixed delay is
+# racy in CI: the comparison rules run in parallel, so several Xvfb + software-GL
+# programs contend for the CPU, and the heaviest scene can still be showing its
+# initial blank/black frame when the deadline fires — yielding an all-black PNG
+# and a 100%-different odiff. Polling for a non-uniform frame removes that race.
 set -euo pipefail
 
 OUT="$1"
@@ -38,14 +45,34 @@ GAMELLE_NO_AUDIO=1 \
     out="$1"; fbdir="$2"; w="$3"; h="$4"; off="$5"; shift 5
     "$@" &
     app=$!
-    # Let it open the window and render several frames (the first frame draws
-    # before the window is resized to the drawing box).
-    sleep 2
-    # Xvfb writes screen 0 to this XWD file; crop the window region out of it.
-    # Force RGBA output (PNG32): the browser PNGs have an alpha channel, so the
-    # colour-comparison cram tests expect 8-digit #RRGGBBAA values from both.
-    magick "xwd:$fbdir/Xvfb_screen0" -crop "${w}x${h}+${off}+${off}" +repage \
-      -alpha set "PNG32:$out"
+
+    # Crop the window region out of the live framebuffer. Xvfb writes screen 0 to
+    # this XWD file. Force RGBA output (PNG32): the browser PNGs have an alpha
+    # channel, so the colour-comparison cram tests expect 8-digit #RRGGBBAA
+    # values from both.
+    capture() {
+      magick "xwd:$fbdir/Xvfb_screen0" -crop "${w}x${h}+${off}+${off}" +repage \
+        -alpha set "PNG32:$out"
+    }
+
+    # Poll until the captured region has content. A blank/black frame (the window
+    # before it has drawn, or before it has been resized to the drawing box) is
+    # perfectly uniform, so standard_deviation == 0; any real frame is not. Give
+    # it up to ~30s, then fall through with whatever we have so the comparison
+    # still produces an (informative) diff rather than hanging.
+    for _ in $(seq 1 60); do
+      sleep 0.5
+      capture 2>/dev/null || continue
+      sd=$(magick "$out" -format "%[fx:standard_deviation]" info: 2>/dev/null || echo 0)
+      # awk: true when sd > 0.0005 (well above floating-point noise, well below
+      # any genuine multi-colour frame).
+      if awk -v s="$sd" "BEGIN { exit !(s > 0.0005) }"; then
+        break
+      fi
+    done
+    # One final capture so $out reflects the latest (settled) frame.
+    capture
+
     kill "$app" 2>/dev/null || true
     wait "$app" 2>/dev/null || true
   ' _ "$OUT" "$FBDIR" "$W" "$H" "$OFF" "$@"
