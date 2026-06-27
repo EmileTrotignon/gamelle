@@ -51,10 +51,7 @@ read -r W H < <(magick identify -format '%w %h\n' "${P}browser.png")
 GAMELLE_SIZE_LOG="${P}raylib_sizes.txt" \
   bash "$SHOT_HELPER" "${P}raylib.png" "$W" "$H" "$SERVERNUM" "$SHOT_EXE" "$SCENARIO"
 
-# 3. odiff (on size-matched copies; both should already be identical).
-# --antialiasing ignores anti-aliased edge pixels: stb (raylib) and firefox
-# rasterise glyph edges ~1px differently, which is unavoidable and would
-# otherwise swamp the real signal (glyph position/size/advance misalignment).
+# 3. odiff (on size-matched copies; both should already be identical modulo AA).
 magick "${P}browser.png" -resize "${W}x${H}!" "${P}browser_norm.png"
 odiff "${P}raylib.png" "${P}browser_norm.png" "${P}diff.png" || true
 [ -f "${P}diff.png" ] || magick -size "${W}x${H}" xc:black "${P}diff.png"

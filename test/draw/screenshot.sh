@@ -42,12 +42,9 @@ read -r W H < <(magick identify -format '%w %h\n' "jsoo.png")
 # size as the browser canvas.
 bash "$SHOT_HELPER" raylib.png "$W" "$H" "$SERVERNUM" "$RAYLIB_EXE"
 
-# 3. odiff (on size-matched copies; both should already be identical).
-# --antialiasing ignores anti-aliased edge pixels: stb (raylib) and firefox
-# rasterise glyph edges ~1px differently, which is unavoidable and would
-# otherwise swamp the real signal (glyph position/size/advance misalignment).
+# 3. odiff (on size-matched copies; both should already be identical modulo AA).
 magick "jsoo.png" -resize "${W}x${H}!" browser_norm.png
-odiff --antialiasing "raylib.png" browser_norm.png "diff.png" || true
+odiff "raylib.png" browser_norm.png "diff.png" || true
 [ -f "diff.png" ] || magick -size "${W}x${H}" xc:black "diff.png"
 
 # 4. native (un-resized) side-by-side so size differences stay visible.
