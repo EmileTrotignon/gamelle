@@ -1,5 +1,5 @@
   $ odiff jsoo.png raylib.png 
-  Found 4948 different pixels (1.03%)
+  Found 4961 different pixels (1.03%)
   [22]
 
   $ odiff --antialiasing jsoo.png raylib.png 

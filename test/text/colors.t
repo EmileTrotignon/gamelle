@@ -18,7 +18,7 @@ Count pixels per exact color, filtering out colors with fewer than 500 pixels
   $ cat raylib_colors
    154372 #FFFFFFFF
      8550 #000000FF
-     1150 #FF7F7FFF
+     1150 #FF8080FF
       289 #FFCBCBFF
       289 #FF3434FF
 
@@ -38,7 +38,7 @@ $ diff jsoo_colors raylib_colors
   $ $IM lines_raylib.png txt:- | awk 'NR>1{print $3}' | sort | uniq -c | sort -rn | awk '$1 >= 250' > raylib_colors
   $ cat raylib_colors
    378836 #FFFFFFFF
-    12720 #FF7F7FFF
+    12720 #FF8080FF
       499 #000000FF
       275 #FEFEFEFF
       270 #838383FF
@@ -59,7 +59,7 @@ $ diff jsoo_colors raylib_colors
   $ cat raylib_colors
    146386 #FFFFFFFF
     16264 #000000FF
-     1644 #FF7F7FFF
+     1644 #FF8080FF
       340 #C9C9C9FF
       282 #FFFBFBFF
       280 #FF0404FF
@@ -81,7 +81,7 @@ $ diff jsoo_colors raylib_colors
   $ $IM roboto_raylib.png txt:- | awk 'NR>1{print $3}' | sort | uniq -c | sort -rn | awk '$1 >= 250' > raylib_colors
   $ cat raylib_colors
    374731 #FFFFFFFF
-    10627 #FF7F7FFF
+    10627 #FF8080FF
      5915 #000000FF
       318 #010101FF
       305 #5A5A5AFF

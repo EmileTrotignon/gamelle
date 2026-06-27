@@ -38,8 +38,14 @@ FBDIR="$(mktemp -d)"
 trap 'rm -rf "$FBDIR"' EXIT
 
 # GAMELLE_NO_AUDIO: there is no audio device under Xvfb; skip audio init.
+# GALLIUM_DRIVER=softpipe: force Mesa's reference software rasteriser instead of
+# llvmpipe. llvmpipe's antialiasing depends on the LLVM version it codegens with,
+# so its output drifts by a few edge pixels between Mesa/LLVM builds (a dev box
+# vs CI); softpipe has no LLVM dependency, giving renders that reproduce across
+# environments so the cram comparisons can pin exact pixel counts.
 GAMELLE_NO_AUDIO=1 \
   LIBGL_ALWAYS_SOFTWARE=1 \
+  GALLIUM_DRIVER=softpipe \
   xvfb-run -w 1 -n "$SERVERNUM" -s "-screen 0 ${SCREEN}x${SCREEN}x24 -fbdir $FBDIR" \
   bash -c '
     out="$1"; fbdir="$2"; w="$3"; h="$4"; off="$5"; shift 5
