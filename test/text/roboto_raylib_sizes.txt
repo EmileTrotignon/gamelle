@@ -10,4 +10,4 @@ size=28 "Hagqy 0123" -> w=150.837 h=34.000
 size=28 "The quick brown fox" -> w=253.536 h=34.000
 size=28 "AVAW To Yo. Wa" -> w=214.170 h=34.000
 size=28 "abcdefghijklmnopqrstuvwxyz" -> w=365.503 h=34.000
-multiline size=20 width=300 "The quick brown fox jumps over the lazy dog. Pack my box." -> w=282.948 h=32.000
+multiline size=20 width=300 "The quick brown fox jumps over the lazy dog. Pack my box. The quick brown fox jumps over the lazy dog. Pack my box." -> w=282.948 h=72.000
