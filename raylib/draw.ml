@@ -275,6 +275,140 @@ let fill_circle ~io ?color circle =
   Raylib.draw_rectangle qx qy qs qs Raylib.Color.white;
   Raylib.end_shader_mode ()
 
+(* --- SDF arc / circular-sector shaders ---
+
+   Both are signed-distance fields (after Inigo Quilez' sdPie / sdArc) evaluated
+   in screen space, antialiased the same way as the circle shaders. The SDFs are
+   symmetric about the +y axis, so we rotate each fragment by [pi/2 - midAngle]
+   to align the arc's bisector with that axis, then test a half-aperture
+   [halfAngle]. *)
+
+let fs_fill_arc =
+  {glsl|
+#version 330
+precision mediump float;
+uniform vec2 center;
+uniform float radius;
+uniform float midAngle;
+uniform float halfAngle;
+uniform vec4 circleColor;
+uniform float screenHeight;
+out vec4 finalColor;
+float sdPie(vec2 p, vec2 c, float r) {
+    p.x = abs(p.x);
+    float l = length(p) - r;
+    float m = length(p - c * clamp(dot(p, c), 0.0, r));
+    return max(l, m * sign((c.y * p.x) - (c.x * p.y)));
+}
+void main() {
+    vec2 pos = vec2(gl_FragCoord.x, screenHeight - gl_FragCoord.y);
+    vec2 q = pos - center;
+    float a = 1.5707963267948966 - midAngle;
+    float ca = cos(a); float sa = sin(a);
+    q = vec2((q.x * ca) - (q.y * sa), (q.x * sa) + (q.y * ca));
+    vec2 sc = vec2(sin(halfAngle), cos(halfAngle));
+    float d = sdPie(q, sc, radius);
+    float alpha = 1.0 - smoothstep(-1.0, 1.0, d);
+    finalColor = vec4(circleColor.rgb, circleColor.a * alpha);
+}
+|glsl}
+
+let fs_draw_arc =
+  {glsl|
+#version 330
+precision mediump float;
+uniform vec2 center;
+uniform float radius;
+uniform float midAngle;
+uniform float halfAngle;
+uniform vec4 circleColor;
+uniform float screenHeight;
+out vec4 finalColor;
+float sdArc(vec2 p, vec2 sc, float ra, float rb) {
+    p.x = abs(p.x);
+    return (((sc.y * p.x) > (sc.x * p.y)) ? length(p - (sc * ra))
+                                          : abs(length(p) - ra)) - rb;
+}
+void main() {
+    vec2 pos = vec2(gl_FragCoord.x, screenHeight - gl_FragCoord.y);
+    vec2 q = pos - center;
+    float a = 1.5707963267948966 - midAngle;
+    float ca = cos(a); float sa = sin(a);
+    q = vec2((q.x * ca) - (q.y * sa), (q.x * sa) + (q.y * ca));
+    vec2 sc = vec2(sin(halfAngle), cos(halfAngle));
+    float d = sdArc(q, sc, radius, 0.5);
+    float alpha = 1.0 - smoothstep(-1.0, 1.0, d);
+    finalColor = vec4(circleColor.rgb, circleColor.a * alpha);
+}
+|glsl}
+
+type arc_shader = {
+  a_shader : Raylib.Shader.t;
+  a_center : Raylib.ShaderLoc.t;
+  a_radius : Raylib.ShaderLoc.t;
+  a_mid : Raylib.ShaderLoc.t;
+  a_half : Raylib.ShaderLoc.t;
+  a_color : Raylib.ShaderLoc.t;
+  a_screen_height : Raylib.ShaderLoc.t;
+}
+
+let load_arc_shader fs =
+  let shader = Raylib.load_shader_from_memory vs fs in
+  {
+    a_shader = shader;
+    a_center = Raylib.get_shader_location shader "center";
+    a_radius = Raylib.get_shader_location shader "radius";
+    a_mid = Raylib.get_shader_location shader "midAngle";
+    a_half = Raylib.get_shader_location shader "halfAngle";
+    a_color = Raylib.get_shader_location shader "circleColor";
+    a_screen_height = Raylib.get_shader_location shader "screenHeight";
+  }
+
+let arc_fill_shader : arc_shader option ref = ref None
+let arc_draw_shader : arc_shader option ref = ref None
+
+let get_arc_shader r fs =
+  match !r with
+  | Some s -> s
+  | None ->
+      let s = load_arc_shader fs in
+      r := Some s;
+      s
+
+let render_arc ~io ?color shader_ref fs arc =
+  let cx, cy = project ~io (Arc.center arc) in
+  let radius = io.view.Transform.scale *. Arc.radius arc in
+  let rot = io.view.Transform.rotate in
+  let start = Arc.start_angle arc +. rot and stop = Arc.end_angle arc +. rot in
+  let mid = 0.5 *. (start +. stop) in
+  let half = Float.min Float.pi (0.5 *. Float.abs (stop -. start)) in
+  let color = get_color ~io color in
+  let s = get_arc_shader shader_ref fs in
+  set_vec2 s.a_shader s.a_center cx cy;
+  set_float s.a_shader s.a_radius radius;
+  set_float s.a_shader s.a_mid mid;
+  set_float s.a_shader s.a_half half;
+  let cr = float (Raylib.Color.r color) /. 255.0 in
+  let cg = float (Raylib.Color.g color) /. 255.0 in
+  let cb = float (Raylib.Color.b color) /. 255.0 in
+  let ca = float (Raylib.Color.a color) /. 255.0 in
+  set_vec4 s.a_shader s.a_color cr cg cb ca;
+  set_float s.a_shader s.a_screen_height (float (Raylib.get_render_height ()));
+  let pad = 2.0 in
+  let qx = int_of_float (cx -. radius -. pad) in
+  let qy = int_of_float (cy -. radius -. pad) in
+  let qs = int_of_float (2.0 *. (radius +. pad)) in
+  with_scissor ~io @@ fun () ->
+  Raylib.begin_shader_mode s.a_shader;
+  Raylib.draw_rectangle qx qy qs qs Raylib.Color.white;
+  Raylib.end_shader_mode ()
+
+let draw_arc ~io ?color arc =
+  render_arc ~io ?color arc_draw_shader fs_draw_arc arc
+
+let fill_arc ~io ?color arc =
+  render_arc ~io ?color arc_fill_shader fs_fill_arc arc
+
 (* --- SDF antialiased line shader --- *)
 
 let fs_line =

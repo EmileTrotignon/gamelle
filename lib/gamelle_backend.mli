@@ -52,6 +52,8 @@ val draw_poly : io:io -> ?color:Color.t -> Polygon.t -> unit
 val fill_poly : io:io -> ?color:Color.t -> Polygon.t -> unit
 val draw_circle : io:io -> ?color:Color.t -> Circle.t -> unit
 val fill_circle : io:io -> ?color:Color.t -> Circle.t -> unit
+val draw_arc : io:io -> ?color:Color.t -> Arc.t -> unit
+val fill_arc : io:io -> ?color:Color.t -> Arc.t -> unit
 
 module Text : sig
   type t

@@ -108,3 +108,32 @@ let fill_circle ~io ?color circle =
   Clip.draw_clip ~io ctx (fun () ->
       C.Path.arc path ~cx:x ~cy:y ~r:radius ~start:0.0 ~stop:tau;
       C.fill ctx path)
+
+(* Arcs use the canvas' native [arc]: the outline is the bare curve, the fill is
+   the circular sector (arc closed back to the center). The view transform is
+   applied to the context, so we draw in world coordinates. *)
+let draw_arc ~io ?color arc =
+  transform ~io;
+  set_color ~io color;
+  let x, y = Vec.to_tuple (Arc.center arc) in
+  let r = Arc.radius arc in
+  let start = Arc.start_angle arc and stop = Arc.end_angle arc in
+  let ctx = io.backend.ctx in
+  Clip.draw_clip ~io ctx (fun () ->
+      let path = C.Path.create () in
+      C.Path.arc path ~cx:x ~cy:y ~r ~start ~stop;
+      C.stroke ctx path)
+
+let fill_arc ~io ?color arc =
+  transform ~io;
+  set_color ~io color;
+  let x, y = Vec.to_tuple (Arc.center arc) in
+  let r = Arc.radius arc in
+  let start = Arc.start_angle arc and stop = Arc.end_angle arc in
+  let ctx = io.backend.ctx in
+  Clip.draw_clip ~io ctx (fun () ->
+      let path = C.Path.create () in
+      C.Path.move_to path ~x ~y;
+      C.Path.arc path ~cx:x ~cy:y ~r ~start ~stop;
+      C.Path.close path;
+      C.fill ctx path)

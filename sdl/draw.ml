@@ -136,6 +136,21 @@ let draw_circle ~io ?color circle =
   in
   ()
 
+(* Arcs are tessellated into segments: the outline as a polyline, the fill as
+   the circular sector (center + arc points) handed to [fill_poly]. *)
+let draw_arc ~io ?color arc =
+  let rec go = function
+    | p0 :: (p1 :: _ as rest) ->
+        draw_line ~io ?color (Segment.v p0 p1);
+        go rest
+    | _ -> ()
+  in
+  go (Arc.to_points arc)
+
+let fill_arc ~io ?color arc =
+  let pts = Arc.center arc :: Arc.to_points arc in
+  fill_poly ~io ?color (Polygon.v pts)
+
 let fill_circle ~io ?color circle =
   let center = Circle.center circle in
   let radius = Circle.radius circle in

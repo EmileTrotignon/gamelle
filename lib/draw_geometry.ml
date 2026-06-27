@@ -72,11 +72,52 @@ module Circle = struct
   let fill ~io ?color c = z ~io (fill_circle ?color c)
 end
 
+module Arc = struct
+  include Geometry.Arc
+
+  let draw ~io ?color a = z ~io (draw_arc ?color a)
+
+  (* Filling an arc draws the corresponding circular sector (pie slice): the
+     curve closed back to the center of the circle. *)
+  let fill ~io ?color a = z ~io (fill_arc ?color a)
+end
+
 module Box = struct
   include Geometry.Box
 
   let draw ~io ?color r = z ~io (draw_rect ?color r)
   let fill ~io ?color r = z ~io (fill_rect ?color r)
+
+  let pi = 4.0 *. atan 1.0
+
+  (* The vertices of [box] with its four corners rounded off by quarter arcs of
+     the given [radius]. [radius] is clamped so it never exceeds half of the
+     smallest side. *)
+  let rounded_points ~radius box =
+    let radius = Float.min radius (0.5 *. Float.min (width box) (height box)) in
+    let xl = x_left box and xr = x_right box in
+    let yt = y_top box and yb = y_bottom box in
+    let corner center ~start =
+      Geometry.Arc.to_points
+        (Geometry.Arc.v center radius ~start ~stop:(start +. (pi /. 2.0)))
+    in
+    List.concat
+      [
+        corner (Geometry.Point.v (xl +. radius) (yt +. radius)) ~start:pi;
+        corner
+          (Geometry.Point.v (xr -. radius) (yt +. radius))
+          ~start:(1.5 *. pi);
+        corner (Geometry.Point.v (xr -. radius) (yb -. radius)) ~start:0.0;
+        corner
+          (Geometry.Point.v (xl +. radius) (yb -. radius))
+          ~start:(0.5 *. pi);
+      ]
+
+  let draw_rounded ~io ?color ~radius box =
+    z ~io (draw_poly ?color (Geometry.Polygon.v (rounded_points ~radius box)))
+
+  let fill_rounded ~io ?color ~radius box =
+    z ~io (fill_poly ?color (Geometry.Polygon.v (rounded_points ~radius box)))
 end
 
 module Size = struct
@@ -91,6 +132,7 @@ type point = Geometry.point
 type vec = Geometry.vec
 type segment = Geometry.segment
 type circle = Geometry.circle
+type arc = Geometry.arc
 type box = Geometry.box
 type size = Geometry.size
 type polygon = Polygon.t

@@ -50,6 +50,8 @@ module Box : sig
 
   val draw : io:io -> ?color:Color.t -> t -> unit
   val fill : io:io -> ?color:Color.t -> t -> unit
+  val draw_rounded : io:io -> ?color:Color.t -> radius:float -> t -> unit
+  val fill_rounded : io:io -> ?color:Color.t -> radius:float -> t -> unit
 end
 
 type box = Box.t
@@ -62,6 +64,15 @@ module Circle : sig
 end
 
 type circle = Circle.t
+
+module Arc : sig
+  include module type of Arc
+
+  val draw : io:io -> ?color:Color.t -> t -> unit
+  val fill : io:io -> ?color:Color.t -> t -> unit
+end
+
+type arc = Arc.t
 
 module Polygon : sig
   include module type of Polygon

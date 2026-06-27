@@ -90,4 +90,20 @@ let () =
     ~at:(Point.v (Box.x_left b +. 10.) (Box.y_bottom b -. 35.))
     "Hello Gamelle!";
 
+  (* Arc + rounded box overlaid on the segment cell for a quick visual check. *)
+  let b = cell 0 0 in
+  let c = Box.center b in
+  let pi = 4.0 *. atan 1.0 in
+  Arc.draw ~io ~color:Color.lime
+    (Arc.v c 30. ~start:(-0.25 *. pi) ~stop:(1.1 *. pi));
+  Arc.fill ~io ~color:Color.gold
+    (Arc.v (Point.v (Box.x_right b -. 35.) (Box.y_bottom b -. 35.)) 25.
+       ~start:0. ~stop:(1.3 *. pi));
+  let rb =
+    Box.v (Point.v (Box.x_left b +. 10.) (Box.y_bottom b -. 30.))
+      (Size.v 60. 20.)
+  in
+  Box.fill_rounded ~io ~color:Color.blue ~radius:8. rb;
+  Box.draw_rounded ~io ~color:Color.white ~radius:8. rb;
+
   ()
