@@ -38,27 +38,28 @@ let metrics_of name =
   | None -> failwith ("gamelle: font metrics not loaded: " ^ name)
 
 let load binstring =
-  lazy
-    (let name = "GamelleFont" ^ string_of_int (gen ()) in
-     Hashtbl.replace metrics_table name (Font_metrics.of_ttf binstring);
-     let arr = Bitmap.tarray_of_string binstring in
-     let fontface_class = Jv.get Jv.global "FontFace" in
-     let ttf =
-       Jv.new' fontface_class
-         [| Jv.of_string name; Tarray.(to_jv (of_bigarray1 arr)) |]
-     in
-     let loading = Jv.call ttf "load" [||] in
-     let _ =
-       Jv.call loading "then"
-         [|
-           Jv.callback ~arity:1 (fun fontface ->
-               let fonts = Jv.get (Document.to_jv G.document) "fonts" in
-               let _res = Jv.call fonts "add" [| fontface |] in
-               ());
-           Jv.callback ~arity:1 (fun e -> Console.(log [ "font error:"; e ]));
-         |]
-     in
-     name)
+  lazy begin
+    let name = "GamelleFont" ^ string_of_int (gen ()) in
+    Hashtbl.replace metrics_table name (Font_metrics.of_ttf binstring);
+    let arr = Bitmap.tarray_of_string binstring in
+    let fontface_class = Jv.get Jv.global "FontFace" in
+    let ttf =
+      Jv.new' fontface_class
+        [| Jv.of_string name; Tarray.(to_jv (of_bigarray1 arr)) |]
+    in
+    let loading = Jv.call ttf "load" [||] in
+    let _ =
+      Jv.call loading "then"
+        [|
+          Jv.callback ~arity:1 (fun fontface ->
+              let fonts = Jv.get (Document.to_jv G.document) "fonts" in
+              let _res = Jv.call fonts "add" [| fontface |] in
+              ());
+          Jv.callback ~arity:1 (fun e -> Console.(log [ "font error:"; e ]));
+        |]
+    in
+    name
+  end
 
 let default = load Gamelle_common.Font.default
 let default_size = Gamelle_common.Font.default_size

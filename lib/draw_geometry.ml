@@ -116,14 +116,15 @@ module Text = struct
     let s = to_string t in
     let x0 = Geometry.Point.x at and y0 = Geometry.Point.y at in
     let lx = ref 0.0 in
-    Font_metrics.iter_codepoints s (fun cp ->
+    Font_metrics.iter_codepoints s begin fun cp ->
         let glyph = of_string (Font_metrics.string_of_cp cp) in
         let at = Geometry.Point.v (Float.round (x0 +. !lx)) y0 in
         draw_glyph ~io ?color ?font ?size ~at glyph;
         lx :=
           !lx
           +. Geometry.Size.width
-               (Gamelle_backend.Text.size ~io ?font ?size glyph))
+               (Gamelle_backend.Text.size ~io ?font ?size glyph)
+      end
 
   let draw_t = draw
   let size_t = size
@@ -132,9 +133,10 @@ module Text = struct
   let min_size ~io ?font ?size str =
     let words = String.split_on_char ' ' str in
     List.fold_left
-      (fun (min_width, min_height) word ->
+      begin fun (min_width, min_height) word ->
         let s = size_t ~io ?font ?size (of_string word) in
-        (max min_width (Size.width s), max min_height (Size.height s)))
+        (max min_width (Size.width s), max min_height (Size.height s))
+      end
       (0.0, 0.0) words
 
   let size_multiline_t ~io ?(width = Float.infinity) ?(interline = -8.) ?font
@@ -204,7 +206,7 @@ module Text = struct
         let split_word word cpos =
           let chars = chars word in
           List.fold_left
-            (fun cpos char ->
+            begin fun cpos char ->
               let size = text_size char in
               let w = Size.width size in
               let cpos =
@@ -212,7 +214,8 @@ module Text = struct
                 else cpos
               in
               draw_string char ~at:cpos;
-              Vec.(cpos + v w 0.))
+              Vec.(cpos + v w 0.)
+            end
             cpos chars
         in
         let cpos =
