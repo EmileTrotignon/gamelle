@@ -359,6 +359,16 @@ module Box : sig
   val fill : io:io -> ?color:Color.t -> t -> unit
   (** [fill ~io b] fills the inside of the box [b]. *)
 
+  val draw_rounded : io:io -> ?color:Color.t -> radius:float -> t -> unit
+  (** [draw_rounded ~io ~radius b] draws the outline of the box [b] with its
+      corners rounded off by quarter circles of the given [radius]. The radius
+      is clamped to at most half of the box's smallest side. *)
+
+  val fill_rounded : io:io -> ?color:Color.t -> radius:float -> t -> unit
+  (** [fill_rounded ~io ~radius b] fills the inside of the box [b] with its
+      corners rounded off by quarter circles of the given [radius]. The radius
+      is clamped to at most half of the box's smallest side. *)
+
   val pp : Format.formatter -> t -> unit
   (** [Format.printf "%a" pp t] pretty prints the box [t] shape. *)
 
@@ -495,6 +505,68 @@ module Circle : sig
   val intersections : t -> t -> Point.t list
   (** [intersections a b] returns the list of intersections points between the
       circles [a] and [b]. *)
+end
+
+module Arc : sig
+  (** Circular arcs. *)
+
+  type t
+  (** The type of circular arcs: a portion of a circle's outline spanning the
+      angles from [start] to [stop] (in radians). *)
+
+  val v : Point.t -> float -> start:float -> stop:float -> t
+  (** [v center radius ~start ~stop] is the arc of the circle centered on
+      [center] with radius [radius], spanning the angles from [start] to [stop]
+      (in radians). *)
+
+  val of_circle : start:float -> stop:float -> Circle.t -> t
+  (** [of_circle ~start ~stop c] is the arc of circle [c] spanning the angles
+      from [start] to [stop] (in radians). *)
+
+  (** {2 Draw} *)
+
+  val draw : io:io -> ?color:Color.t -> t -> unit
+  (** [draw ~io a] draws the arc [a]. *)
+
+  val fill : io:io -> ?color:Color.t -> t -> unit
+  (** [fill ~io a] fills the circular sector (pie slice) delimited by the arc
+      [a] and its two radii. *)
+
+  val pp : Format.formatter -> t -> unit
+  (** [Format.printf "%a" pp t] pretty prints the arc [t] shape. *)
+
+  (** {2 Accessors} *)
+
+  val center : t -> Point.t
+  (** [center a] is the center point of the arc [a]'s circle. *)
+
+  val radius : t -> float
+  (** [radius a] is the radius of the arc [a]'s circle. *)
+
+  val start_angle : t -> float
+  (** [start_angle a] is the starting angle of the arc [a], in radians. *)
+
+  val end_angle : t -> float
+  (** [end_angle a] is the ending angle of the arc [a], in radians. *)
+
+  val angle : t -> float
+  (** [angle a] is the signed angular span [stop -. start] of the arc [a], in
+      radians. *)
+
+  val start_point : t -> Point.t
+  (** [start_point a] is the point at the start of the arc [a]. *)
+
+  val end_point : t -> Point.t
+  (** [end_point a] is the point at the end of the arc [a]. *)
+
+  val point_at : t -> float -> Point.t
+  (** [point_at a angle] is the point on the arc [a]'s circle at the given
+      [angle] (in radians). *)
+
+  (** {2 Transforms} *)
+
+  val translate : Vec.t -> t -> t
+  (** [translate v a] translates the arc [a] by vector [v]. *)
 end
 
 module Polygon : sig

@@ -88,36 +88,17 @@ module Box = struct
   let draw ~io ?color r = z ~io (draw_rect ?color r)
   let fill ~io ?color r = z ~io (fill_rect ?color r)
 
-  let pi = 4.0 *. atan 1.0
-
-  (* The vertices of [box] with its four corners rounded off by quarter arcs of
-     the given [radius]. [radius] is clamped so it never exceeds half of the
-     smallest side. *)
-  let rounded_points ~radius box =
-    let radius = Float.min radius (0.5 *. Float.min (width box) (height box)) in
-    let xl = x_left box and xr = x_right box in
-    let yt = y_top box and yb = y_bottom box in
-    let corner center ~start =
-      Geometry.Arc.to_points
-        (Geometry.Arc.v center radius ~start ~stop:(start +. (pi /. 2.0)))
-    in
-    List.concat
-      [
-        corner (Geometry.Point.v (xl +. radius) (yt +. radius)) ~start:pi;
-        corner
-          (Geometry.Point.v (xr -. radius) (yt +. radius))
-          ~start:(1.5 *. pi);
-        corner (Geometry.Point.v (xr -. radius) (yb -. radius)) ~start:0.0;
-        corner
-          (Geometry.Point.v (xl +. radius) (yb -. radius))
-          ~start:(0.5 *. pi);
-      ]
+  (* Clamp the corner radius to at most half the smallest side, so it never
+     self-overlaps, before handing it to the backend's rounded-rectangle
+     primitive. *)
+  let clamp_radius ~radius box =
+    Float.max 0.0 (Float.min radius (0.5 *. Float.min (width box) (height box)))
 
   let draw_rounded ~io ?color ~radius box =
-    z ~io (draw_poly ?color (Geometry.Polygon.v (rounded_points ~radius box)))
+    z ~io (draw_rounded_rect ?color ~radius:(clamp_radius ~radius box) box)
 
   let fill_rounded ~io ?color ~radius box =
-    z ~io (fill_poly ?color (Geometry.Polygon.v (rounded_points ~radius box)))
+    z ~io (fill_rounded_rect ?color ~radius:(clamp_radius ~radius box) box)
 end
 
 module Size = struct

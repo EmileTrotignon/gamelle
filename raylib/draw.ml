@@ -409,6 +409,134 @@ let draw_arc ~io ?color arc =
 let fill_arc ~io ?color arc =
   render_arc ~io ?color arc_fill_shader fs_fill_arc arc
 
+(* --- SDF rounded-rectangle shaders ---
+
+   Inigo Quilez' sdRoundBox, evaluated in the box's local frame: each fragment
+   is rotated by [-rot] (the inverse of the view rotation [project] applies) so
+   the SDF stays axis-aligned. [fill] is the inside, [draw] the [abs]-banded
+   outline, both antialiased like the circle shaders. *)
+
+let fs_fill_round =
+  {glsl|
+#version 330
+precision mediump float;
+uniform vec2 center;
+uniform vec2 halfSize;
+uniform float radius;
+uniform float rot;
+uniform vec4 circleColor;
+uniform float screenHeight;
+out vec4 finalColor;
+float sdRoundBox(vec2 p, vec2 b, float r) {
+    vec2 q = abs(p) - b + r;
+    return min(max(q.x, q.y), 0.0) + length(max(q, vec2(0.0))) - r;
+}
+void main() {
+    vec2 pos = vec2(gl_FragCoord.x, screenHeight - gl_FragCoord.y);
+    vec2 d = pos - center;
+    float c = cos(rot); float s = sin(rot);
+    vec2 q = vec2((d.x * c) + (d.y * s), (-d.x * s) + (d.y * c));
+    float dist = sdRoundBox(q, halfSize, radius);
+    float alpha = 1.0 - smoothstep(-1.0, 1.0, dist);
+    finalColor = vec4(circleColor.rgb, circleColor.a * alpha);
+}
+|glsl}
+
+let fs_draw_round =
+  {glsl|
+#version 330
+precision mediump float;
+uniform vec2 center;
+uniform vec2 halfSize;
+uniform float radius;
+uniform float rot;
+uniform vec4 circleColor;
+uniform float screenHeight;
+out vec4 finalColor;
+float sdRoundBox(vec2 p, vec2 b, float r) {
+    vec2 q = abs(p) - b + r;
+    return min(max(q.x, q.y), 0.0) + length(max(q, vec2(0.0))) - r;
+}
+void main() {
+    vec2 pos = vec2(gl_FragCoord.x, screenHeight - gl_FragCoord.y);
+    vec2 d = pos - center;
+    float c = cos(rot); float s = sin(rot);
+    vec2 q = vec2((d.x * c) + (d.y * s), (-d.x * s) + (d.y * c));
+    float dist = abs(sdRoundBox(q, halfSize, radius)) - 0.5;
+    float alpha = 1.0 - smoothstep(-1.0, 1.0, dist);
+    finalColor = vec4(circleColor.rgb, circleColor.a * alpha);
+}
+|glsl}
+
+type round_shader = {
+  ro_shader : Raylib.Shader.t;
+  ro_center : Raylib.ShaderLoc.t;
+  ro_half : Raylib.ShaderLoc.t;
+  ro_radius : Raylib.ShaderLoc.t;
+  ro_rot : Raylib.ShaderLoc.t;
+  ro_color : Raylib.ShaderLoc.t;
+  ro_screen_height : Raylib.ShaderLoc.t;
+}
+
+let load_round_shader fs =
+  let shader = Raylib.load_shader_from_memory vs fs in
+  {
+    ro_shader = shader;
+    ro_center = Raylib.get_shader_location shader "center";
+    ro_half = Raylib.get_shader_location shader "halfSize";
+    ro_radius = Raylib.get_shader_location shader "radius";
+    ro_rot = Raylib.get_shader_location shader "rot";
+    ro_color = Raylib.get_shader_location shader "circleColor";
+    ro_screen_height = Raylib.get_shader_location shader "screenHeight";
+  }
+
+let round_fill_shader : round_shader option ref = ref None
+let round_draw_shader : round_shader option ref = ref None
+
+let get_round_shader r fs =
+  match !r with
+  | Some s -> s
+  | None ->
+      let s = load_round_shader fs in
+      r := Some s;
+      s
+
+let render_rounded_rect ~io ?color shader_ref fs ~radius box =
+  let cx, cy = project ~io (Box.center box) in
+  let scale = io.view.Transform.scale in
+  let hw = 0.5 *. Box.width box *. scale in
+  let hh = 0.5 *. Box.height box *. scale in
+  let radius = radius *. scale in
+  let rot = io.view.Transform.rotate in
+  let color = get_color ~io color in
+  let s = get_round_shader shader_ref fs in
+  set_vec2 s.ro_shader s.ro_center cx cy;
+  set_vec2 s.ro_shader s.ro_half hw hh;
+  set_float s.ro_shader s.ro_radius radius;
+  set_float s.ro_shader s.ro_rot rot;
+  let cr = float (Raylib.Color.r color) /. 255.0 in
+  let cg = float (Raylib.Color.g color) /. 255.0 in
+  let cb = float (Raylib.Color.b color) /. 255.0 in
+  let ca = float (Raylib.Color.a color) /. 255.0 in
+  set_vec4 s.ro_shader s.ro_color cr cg cb ca;
+  set_float s.ro_shader s.ro_screen_height (float (Raylib.get_render_height ()));
+  (* A square covering the box under any rotation: centre ± its half-diagonal. *)
+  let half_diag = sqrt ((hw *. hw) +. (hh *. hh)) in
+  let pad = 2.0 in
+  let qx = int_of_float (cx -. half_diag -. pad) in
+  let qy = int_of_float (cy -. half_diag -. pad) in
+  let qs = int_of_float (2.0 *. (half_diag +. pad)) in
+  with_scissor ~io @@ fun () ->
+  Raylib.begin_shader_mode s.ro_shader;
+  Raylib.draw_rectangle qx qy qs qs Raylib.Color.white;
+  Raylib.end_shader_mode ()
+
+let draw_rounded_rect ~io ?color ~radius box =
+  render_rounded_rect ~io ?color round_draw_shader fs_draw_round ~radius box
+
+let fill_rounded_rect ~io ?color ~radius box =
+  render_rounded_rect ~io ?color round_fill_shader fs_fill_round ~radius box
+
 (* --- SDF antialiased line shader --- *)
 
 let fs_line =
