@@ -31,7 +31,8 @@
   basic/basic_bin.exe
   basic/basic.html
   (file %{project_root}/test/cram/screenshot/screenshot.exe)
-  (file %{project_root}/data/FreeMono.ttf))
+  (file %{project_root}/data/FreeMono.ttf)
+  (file %{project_root}/test/raylib_screenshot.sh))
  (action
   (run
    bash
@@ -39,7 +40,8 @@
    basic/basic_bin.exe
    basic/basic.html
    %{project_root}/test/cram/screenshot/screenshot.exe
-   %{project_root}/data/FreeMono.ttf)))
+   %{project_root}/data/FreeMono.ttf
+   %{project_root}/test/raylib_screenshot.sh)))
 
 (cram
  (package gamelle)

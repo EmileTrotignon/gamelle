@@ -12,24 +12,18 @@ SCREENSHOT_EXE="$3"
 # CI has no fontconfig, so its default font resolves to null ("unable to read
 # font `(null)'"). Passing a concrete .ttf avoids relying on system font setup.
 FONT="$4"
+# Helper that runs a raylib program under Xvfb and captures its window.
+SHOT_HELPER="$5"
 
-echo $RAYLIB_EXE
-echo $HTML
-echo $SCREENSHOT_EXE
 # Serialize concurrent runs (e.g. building both comparison aliases at once):
-# they would otherwise fight over the X display and the geckodriver port.
+# they would otherwise fight over the geckodriver port.
 exec 9>/tmp/gamelle_screenshot.lock
 flock 9
 
-# 1. raylib, rendered headlessly with software GL on a virtual X server. Also
-# records its Text.size predictions (GAMELLE_SIZE_LOG).
-GAMELLE_SCREENSHOT="raylib.png" \
-  LIBGL_ALWAYS_SOFTWARE=1 \
-  xvfb-run -w 1 -a -s "-screen 0 800x800x24" "$RAYLIB_EXE"
-
-# 2. browser, rendered headlessly with firefox via geckodriver. Only the
-# geckodriver we start is ever killed (it cleans up its own firefox children);
-# we never touch other firefox processes.
+# 1. browser, rendered headlessly with firefox via geckodriver. Its canvas is
+# sized to the scene's drawing box, so it also tells us how big to capture the
+# raylib window. Only the geckodriver we start is ever killed (it cleans up its
+# own firefox children); we never touch other firefox processes.
 geckodriver --port 4444 </dev/null >/dev/null 2>&1 &
 GECKO=$!
 trap 'kill "$GECKO" 2>/dev/null || true' EXIT
@@ -43,12 +37,16 @@ done
 "$SCREENSHOT_EXE" "$HTML" >browser_raw.png
 # The element screenshot includes the 1px canvas border; crop it off.
 magick browser_raw.png -shave 1x1 "jsoo.png"
+read -r W H < <(magick identify -format '%w %h\n' "jsoo.png")
+
+# 2. raylib, captured externally (the backend has no screenshot code) at the same
+# size as the browser canvas.
+bash "$SHOT_HELPER" raylib.png "$W" "$H" "$RAYLIB_EXE"
 
 # 3. odiff (on size-matched copies; both should already be identical).
 # --antialiasing ignores anti-aliased edge pixels: stb (raylib) and firefox
 # rasterise glyph edges ~1px differently, which is unavoidable and would
 # otherwise swamp the real signal (glyph position/size/advance misalignment).
-read -r W H < <(magick identify -format '%w %h\n' "raylib.png")
 magick "jsoo.png" -resize "${W}x${H}!" browser_norm.png
 odiff --antialiasing "raylib.png" browser_norm.png "diff.png" || true
 [ -f "diff.png" ] || magick -size "${W}x${H}" xc:black "diff.png"

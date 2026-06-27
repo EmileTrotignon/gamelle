@@ -8,15 +8,12 @@ module Text = Text
 include Draw
 module Window = Window
 
-(* When [GAMELLE_SCREENSHOT] is set, the run loop renders a few frames, writes a
-   PNG to that path and exits. Used by the headless raylib screenshot tests; the
-   audio device is skipped so it works under xvfb. *)
-let screenshot_path = Sys.getenv_opt "GAMELLE_SCREENSHOT"
-
-let screenshot_frame =
-  match Sys.getenv_opt "GAMELLE_SCREENSHOT_FRAME" with
-  | Some n -> ( try int_of_string n with _ -> 3)
-  | None -> 3
+(* Headless screenshots are taken entirely outside the backend (see
+   test/raylib_screenshot.sh): the program runs normally under Xvfb and the
+   virtual framebuffer is captured externally. Audio init is skipped when no
+   audio device is available (e.g. under Xvfb) so it does not fail there. *)
+let has_audio =
+  match Sys.getenv_opt "GAMELLE_NO_AUDIO" with Some _ -> false | None -> true
 
 let run state update =
   Raylib.set_config_flags Raylib.ConfigFlags.(msaa_4x_hint + window_highdpi);
@@ -24,7 +21,7 @@ let run state update =
   Raylib.init_window 640 640 "Gamelle";
   (* Raylib.begin_blend_mode Raylib.BlendMode.Alpha_premultiply; *)
   Raylib.set_target_fps 60;
-  if screenshot_path = None then Raylib.init_audio_device ();
+  if has_audio then Raylib.init_audio_device ();
 
   let backend = { font = Font_.default; font_size = Font_.default_size } in
   let io = Gamelle_common.make_io backend in
@@ -44,18 +41,10 @@ let run state update =
     let io = { io with view = Transform.scale dpi_scale io.view } in
     state := update ~io !state;
     Window.finalize_frame ~io;
-    begin match screenshot_path with
-    | Some path when !clock_ref >= screenshot_frame ->
-        (* Flush the batched draw calls to the framebuffer before reading it
-           back, then capture before [end_drawing] swaps buffers. *)
-        Raylib.Rlgl.draw_render_batch_active ();
-        Raylib.take_screenshot path;
-        running := false
-    | _ -> if screenshot_path = None then Sound.update_current_music ()
-    end;
+    if has_audio then Sound.update_current_music ();
     Raylib.end_drawing ()
   done;
-  if screenshot_path = None then begin
+  if has_audio then begin
     Sound.cleanup ();
     Raylib.close_audio_device ()
   end;

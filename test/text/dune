@@ -114,7 +114,8 @@
   lines.html
   (file %{project_root}/test/cram/screenshot/screenshot.exe)
   (file %{project_root}/test/cram/screenshot/dump_sizes.exe)
-  (file %{project_root}/data/FreeMono.ttf))
+  (file %{project_root}/data/FreeMono.ttf)
+  (file %{project_root}/test/raylib_screenshot.sh))
  (action
   (run
    bash
@@ -125,7 +126,8 @@
    %{project_root}/test/cram/screenshot/screenshot.exe
    %{project_root}/test/cram/screenshot/dump_sizes.exe
    lines_
-   %{project_root}/data/FreeMono.ttf)))
+   %{project_root}/data/FreeMono.ttf
+   %{project_root}/test/raylib_screenshot.sh)))
 
 ; Test 2: two glyphs, default font.
 
@@ -146,7 +148,8 @@
   glyph.html
   (file %{project_root}/test/cram/screenshot/screenshot.exe)
   (file %{project_root}/test/cram/screenshot/dump_sizes.exe)
-  (file %{project_root}/data/FreeMono.ttf))
+  (file %{project_root}/data/FreeMono.ttf)
+  (file %{project_root}/test/raylib_screenshot.sh))
  (action
   (run
    bash
@@ -157,7 +160,8 @@
    %{project_root}/test/cram/screenshot/screenshot.exe
    %{project_root}/test/cram/screenshot/dump_sizes.exe
    glyph_
-   %{project_root}/data/FreeMono.ttf)))
+   %{project_root}/data/FreeMono.ttf
+   %{project_root}/test/raylib_screenshot.sh)))
 
 ; Test 3: lines of text, Roboto (proportional, divergent metrics).
 
@@ -178,7 +182,8 @@
   roboto.html
   (file %{project_root}/test/cram/screenshot/screenshot.exe)
   (file %{project_root}/test/cram/screenshot/dump_sizes.exe)
-  (file %{project_root}/data/FreeMono.ttf))
+  (file %{project_root}/data/FreeMono.ttf)
+  (file %{project_root}/test/raylib_screenshot.sh))
  (action
   (run
    bash
@@ -189,7 +194,8 @@
    %{project_root}/test/cram/screenshot/screenshot.exe
    %{project_root}/test/cram/screenshot/dump_sizes.exe
    roboto_
-   %{project_root}/data/FreeMono.ttf)))
+   %{project_root}/data/FreeMono.ttf
+   %{project_root}/test/raylib_screenshot.sh)))
 
 ; Test 4: two glyphs, Roboto.
 
@@ -210,7 +216,8 @@
   roboto_glyph.html
   (file %{project_root}/test/cram/screenshot/screenshot.exe)
   (file %{project_root}/test/cram/screenshot/dump_sizes.exe)
-  (file %{project_root}/data/FreeMono.ttf))
+  (file %{project_root}/data/FreeMono.ttf)
+  (file %{project_root}/test/raylib_screenshot.sh))
  (action
   (run
    bash
@@ -221,7 +228,8 @@
    %{project_root}/test/cram/screenshot/screenshot.exe
    %{project_root}/test/cram/screenshot/dump_sizes.exe
    roboto_glyph_
-   %{project_root}/data/FreeMono.ttf)))
+   %{project_root}/data/FreeMono.ttf
+   %{project_root}/test/raylib_screenshot.sh)))
 
 (cram
  (package gamelle)
