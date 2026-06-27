@@ -42,7 +42,7 @@ jobs:
       # Extract it (the runner has no FUSE) and expose its launcher as `magick`.
       - name: Install ImageMagick 7
         run: |
-          curl -fL https://imagemagick.org/archive/binaries/magick -o /tmp/magick
+          curl -fL https://github.com/ImageMagick/ImageMagick/releases/download/7.1.2-26/ImageMagick-7.1.2-26-gcc-x86_64.AppImage -o /tmp/magick
           chmod +x /tmp/magick
           (cd /tmp && ./magick --appimage-extract >/dev/null)
           sudo mv /tmp/squashfs-root /opt/imagemagick7
