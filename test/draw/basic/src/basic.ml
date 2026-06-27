@@ -62,6 +62,7 @@ let () =
       [
         Point.v cx (cy -. 65.);
         Point.v (cx +. 20.) (cy -. 65.);
+        Point.v (cx +. 20.) (cy);
         Point.v (cx +. 60.) (cy +. 40.);
         Point.v (cx -. 60.) (cy +. 40.);
       ]
