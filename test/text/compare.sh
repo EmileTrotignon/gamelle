@@ -22,7 +22,7 @@ flock 9
 GAMELLE_SCREENSHOT="${P}raylib.png" \
   GAMELLE_SIZE_LOG="${P}raylib_sizes.txt" \
   LIBGL_ALWAYS_SOFTWARE=1 \
-  xvfb-run -a -s "-screen 0 800x800x24" "$SHOT_EXE" "$SCENARIO"
+  xvfb-run -w 1 -a -s "-screen 0 800x800x24" "$SHOT_EXE" "$SCENARIO"
 
 # 2. browser, rendered headlessly with firefox via geckodriver. Only the
 # geckodriver we start is ever killed (it cleans up its own firefox children);

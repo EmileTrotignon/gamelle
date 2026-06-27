@@ -215,82 +215,18 @@
    %{project_root}/test/cram/screenshot/dump_sizes.exe
    roboto_glyph_)))
 
-; `dune runtest` assertions: render both backends and require their public
-; Text.size / Text.size_multiline predictions to be byte-identical (sizes.sh
-; exits non-zero, printing the diff, on any mismatch). These render fresh, so
-; they need xvfb + geckodriver, but skip all PNG work.
-
-(rule
- (alias runtest)
- (targets t_lines_raylib.txt t_lines_browser.txt t_lines_throwaway.png)
+(cram
+ (package gamelle)
  (deps
-  sizes.sh
-  main.exe
-  lines.html
-  (file %{project_root}/test/cram/screenshot/dump_sizes.exe))
- (action
-  (run
-   bash
-   sizes.sh
-   ./main.exe
-   lines
-   lines.html
-   %{project_root}/test/cram/screenshot/dump_sizes.exe
-   t_lines_)))
-
-(rule
- (alias runtest)
- (targets t_glyph_raylib.txt t_glyph_browser.txt t_glyph_throwaway.png)
- (deps
-  sizes.sh
-  main.exe
-  glyph.html
-  (file %{project_root}/test/cram/screenshot/dump_sizes.exe))
- (action
-  (run
-   bash
-   sizes.sh
-   ./main.exe
-   glyph
-   glyph.html
-   %{project_root}/test/cram/screenshot/dump_sizes.exe
-   t_glyph_)))
-
-(rule
- (alias runtest)
- (targets t_roboto_raylib.txt t_roboto_browser.txt t_roboto_throwaway.png)
- (deps
-  sizes.sh
-  main.exe
-  roboto.html
-  (file %{project_root}/test/cram/screenshot/dump_sizes.exe))
- (action
-  (run
-   bash
-   sizes.sh
-   ./main.exe
-   roboto
-   roboto.html
-   %{project_root}/test/cram/screenshot/dump_sizes.exe
-   t_roboto_)))
-
-(rule
- (alias runtest)
- (targets
-  t_roboto_glyph_raylib.txt
-  t_roboto_glyph_browser.txt
-  t_roboto_glyph_throwaway.png)
- (deps
-  sizes.sh
-  main.exe
-  roboto_glyph.html
-  (file %{project_root}/test/cram/screenshot/dump_sizes.exe))
- (action
-  (run
-   bash
-   sizes.sh
-   ./main.exe
-   roboto_glyph
-   roboto_glyph.html
-   %{project_root}/test/cram/screenshot/dump_sizes.exe
-   t_roboto_glyph_)))
+  glyph_browser.png
+  glyph_raylib.png
+  lines_browser.png
+  lines_raylib.png
+  roboto_glyph_browser.png
+  roboto_glyph_raylib.png
+  roboto_browser.png
+  roboto_raylib.png
+  lines_sizes_diff.txt
+  glyph_sizes_diff.txt
+  roboto_glyph_sizes_diff.txt
+  roboto_sizes_diff.txt))
