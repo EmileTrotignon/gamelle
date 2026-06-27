@@ -1,7 +1,7 @@
 (library
  (public_name gamelle.common)
  (name gamelle_common)
- (libraries gg color)
+ (libraries gg color otfm)
  (preprocess
   (pps ppx_blob))
  (preprocessor_deps ../data/FreeMono.ttf))

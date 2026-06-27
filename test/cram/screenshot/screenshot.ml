@@ -8,7 +8,11 @@ let test =
   let* img = screenshot ~elt:canvas () in
   return img
 
-let host = "http://127.0.0.1:4444"
+(* Port of the geckodriver to drive; passed so parallel runs can each use their
+   own (defaults to 4444). *)
+let host =
+  let port = if Array.length Sys.argv > 2 then Sys.argv.(2) else "4444" in
+  Printf.sprintf "http://127.0.0.1:%s" port
 
 let () =
   try

@@ -109,6 +109,23 @@ module Text = struct
     List.iter (fun str -> Buffer.add_string buffer (to_string str)) li;
     of_string (Buffer.contents buffer)
 
+  (* Backend-agnostic single-line layout: place each glyph at the running pen
+     position (snapped to a whole pixel) and advance by the glyph's measured
+     width. Each backend only implements [draw_glyph] (one glyph) and [size]. *)
+  let draw ~io ?color ?font ?size ~at t =
+    let s = to_string t in
+    let x0 = Geometry.Point.x at and y0 = Geometry.Point.y at in
+    let lx = ref 0.0 in
+    Font_metrics.iter_codepoints s begin fun cp ->
+        let glyph = of_string (Font_metrics.string_of_cp cp) in
+        let at = Geometry.Point.v (Float.round (x0 +. !lx)) y0 in
+        draw_glyph ~io ?color ?font ?size ~at glyph;
+        lx :=
+          !lx
+          +. Geometry.Size.width
+               (Gamelle_backend.Text.size ~io ?font ?size glyph)
+      end
+
   let draw_t = draw
   let size_t = size
   let size ~io ?font ?size t = size_t ~io ?font ?size (of_string t)
@@ -116,9 +133,10 @@ module Text = struct
   let min_size ~io ?font ?size str =
     let words = String.split_on_char ' ' str in
     List.fold_left
-      (fun (min_width, min_height) word ->
+      begin fun (min_width, min_height) word ->
         let s = size_t ~io ?font ?size (of_string word) in
-        (max min_width (Size.width s), max min_height (Size.height s)))
+        (max min_width (Size.width s), max min_height (Size.height s))
+      end
       (0.0, 0.0) words
 
   let size_multiline_t ~io ?(width = Float.infinity) ?(interline = -8.) ?font
@@ -162,7 +180,12 @@ module Text = struct
       (maxw, Point.v startx (cpos.y +. hline))
     in
     let maxw, end_pos = List.fold_left print_line (0., pos) lines in
-    Size.v maxw end_pos.y
+    (* [end_pos.y] advanced by a full [hline] (line height + interline) past the
+       last line's top. The bounding box only needs the last line's actual height
+       there, not another interline gap, so drop the trailing [interline] —
+       otherwise (with the default negative [interline]) the box is too short and
+       the last line's descenders spill out below it. *)
+    Size.v maxw (end_pos.y -. interline)
 
   let size_multiline ~io ?width ?interline ?font ?size str =
     size_multiline_t ~io ?width ?interline ?font ?size (of_string str)
@@ -183,7 +206,7 @@ module Text = struct
         let split_word word cpos =
           let chars = chars word in
           List.fold_left
-            (fun cpos char ->
+            begin fun cpos char ->
               let size = text_size char in
               let w = Size.width size in
               let cpos =
@@ -191,7 +214,8 @@ module Text = struct
                 else cpos
               in
               draw_string char ~at:cpos;
-              Vec.(cpos + v w 0.))
+              Vec.(cpos + v w 0.)
+            end
             cpos chars
         in
         let cpos =

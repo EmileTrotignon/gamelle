@@ -33,7 +33,7 @@ let slice ?(start = 0) ?stop str =
 let to_string = Fun.id
 let of_string = Fun.id
 
-let draw ~io ?color ?font ?size ~at:p text =
-  if text <> "" then Font_.draw_text ~io ?color ?font ?size ~at:p text
+let draw_glyph ~io ?color ?font ?size ~at:p text =
+  if text <> "" then Font_.draw_glyph ~io ?color ?font ?size ~at:p text
 
 let size ~io ?font ?size text = Font_.text_size ~io ?font ?size text

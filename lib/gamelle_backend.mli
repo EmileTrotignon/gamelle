@@ -64,7 +64,10 @@ module Text : sig
   val get : t -> int -> t
   val chars : t -> t list
 
-  val draw :
+  (* Draw a single glyph (a one-codepoint [t]) with its layout origin at [at].
+     Inter-glyph advancing is done once, backend-agnostically, in [Draw_geometry]
+     using [size]; each backend only has to place one glyph and query sizes. *)
+  val draw_glyph :
     io:io ->
     ?color:Color.t ->
     ?font:Font.t ->

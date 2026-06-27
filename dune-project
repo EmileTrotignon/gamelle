@@ -39,6 +39,8 @@
    (>= 0.7.2))
   (uuseg
    (>= 15.1.0))
+  (otfm
+   (>= 0.4.0))
   (imagelib
    (>= 20221222))
   (webdriver_cohttp-lwt-unix :with-test))

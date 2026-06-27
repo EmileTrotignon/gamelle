@@ -8,12 +8,20 @@ module Text = Text
 include Draw
 module Window = Window
 
+(* Headless screenshots are taken entirely outside the backend (see
+   test/raylib_screenshot.sh): the program runs normally under Xvfb and the
+   virtual framebuffer is captured externally. Audio init is skipped when no
+   audio device is available (e.g. under Xvfb) so it does not fail there. *)
+let has_audio =
+  match Sys.getenv_opt "GAMELLE_NO_AUDIO" with Some _ -> false | None -> true
+
 let run state update =
   Raylib.set_config_flags Raylib.ConfigFlags.(msaa_4x_hint + window_highdpi);
   Raylib.set_trace_log_level Raylib.TraceLogLevel.Warning;
   Raylib.init_window 640 640 "Gamelle";
+  (* Raylib.begin_blend_mode Raylib.BlendMode.Alpha_premultiply; *)
   Raylib.set_target_fps 60;
-  Raylib.init_audio_device ();
+  if has_audio then Raylib.init_audio_device ();
 
   let backend = { font = Font_.default; font_size = Font_.default_size } in
   let io = Gamelle_common.make_io backend in
@@ -33,9 +41,11 @@ let run state update =
     let io = { io with view = Transform.scale dpi_scale io.view } in
     state := update ~io !state;
     Window.finalize_frame ~io;
-    Sound.update_current_music ();
+    if has_audio then Sound.update_current_music ();
     Raylib.end_drawing ()
   done;
-  Sound.cleanup ();
-  Raylib.close_audio_device ();
+  if has_audio then begin
+    Sound.cleanup ();
+    Raylib.close_audio_device ()
+  end;
   Raylib.close_window ()

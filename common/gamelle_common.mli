@@ -3,6 +3,7 @@
 module Transform : module type of Transform
 module Events_backend : module type of Events_backend
 module Font : module type of Font
+module Font_metrics : module type of Font_metrics
 module Delayed : module type of Delayed
 module Geometry : module type of Geometry
 module View : module type of View

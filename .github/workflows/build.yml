@@ -22,7 +22,47 @@ jobs:
           ocaml-compiler: "5.4"
 
       - name: Install dependencies
-        run: opam install ./gamelle-all.opam --deps-only
+        run: opam install ./gamelle.opam ./gamelle-all.opam --deps-only --with-test
 
       - name: Build
         run: opam exec -- dune build @install
+
+      # System packages needed by the screenshot tests: a virtual X server for
+      # the raylib (OpenGL) backend plus software-GL/X runtime libraries.
+      - name: Install screenshot test system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            xvfb xauth \
+            libgl1-mesa-dri libglu1-mesa \
+            libxrandr2 libxinerama1 libxcursor1 libxi6
+
+      # ImageMagick 7: Ubuntu's apt only ships ImageMagick 6, which has no unified
+      # `magick` command. Install the official portable static binary instead.
+      # Extract it (the runner has no FUSE) and expose its launcher as `magick`.
+      - name: Install ImageMagick 7
+        run: |
+          curl -fL https://github.com/ImageMagick/ImageMagick/releases/download/7.1.2-26/ImageMagick-7.1.2-26-gcc-x86_64.AppImage -o /tmp/magick
+          chmod +x /tmp/magick
+          (cd /tmp && ./magick --appimage-extract >/dev/null)
+          sudo mv /tmp/squashfs-root /opt/imagemagick7
+          sudo ln -sf /opt/imagemagick7/AppRun /usr/local/bin/magick
+          magick -version
+
+      # The browser side of the tests renders with headless Firefox driven by
+      # geckodriver.
+      - name: Install Firefox
+        uses: browser-actions/setup-firefox@v1
+
+      - name: Install geckodriver
+        uses: browser-actions/setup-geckodriver@latest
+
+      # The screenshot tests compare the two backends with `odiff`; the prebuilt
+      # binary ships as the `odiff-bin` npm package (Node is preinstalled).
+      - name: Install odiff
+        run: |
+          npm install -g odiff-bin
+          odiff --version
+
+      - name: Test
+        run: opam exec -- dune runtest
