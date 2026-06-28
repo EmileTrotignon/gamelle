@@ -48,10 +48,17 @@ val draw : io:io -> Bitmap.t -> point -> unit
 val draw_line : io:io -> ?color:Color.t -> Segment.t -> unit
 val draw_rect : io:io -> ?color:Color.t -> box -> unit
 val fill_rect : io:io -> ?color:Color.t -> box -> unit
+
+(* [radius] is the corner radius, already clamped by the caller to at most half
+   the box's smallest side. *)
+val draw_rounded_rect : io:io -> ?color:Color.t -> radius:float -> box -> unit
+val fill_rounded_rect : io:io -> ?color:Color.t -> radius:float -> box -> unit
 val draw_poly : io:io -> ?color:Color.t -> Polygon.t -> unit
 val fill_poly : io:io -> ?color:Color.t -> Polygon.t -> unit
 val draw_circle : io:io -> ?color:Color.t -> Circle.t -> unit
 val fill_circle : io:io -> ?color:Color.t -> Circle.t -> unit
+val draw_arc : io:io -> ?color:Color.t -> Arc.t -> unit
+val fill_arc : io:io -> ?color:Color.t -> Arc.t -> unit
 
 module Text : sig
   type t

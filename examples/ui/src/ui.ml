@@ -41,7 +41,10 @@ let rec loop { text; check1; check2; slider1; slider2; rad } ~io =
             text_area [%ui]
               "Another long string that should wrap, and wrap, and wrap again \
                until everything is displayed. It must be longer otherwise \
-               there will be no need for the scrollbar."
+               there will be no need for the scrollbar. Again: Another long \
+               string that should wrap, and wrap, and wrap again until \
+               everything is displayed. It must be longer otherwise there will \
+               be no need for the scrollbar."
           end;
         vscroll [%ui] begin fun () ->
             if button [%ui] "button A" then print_endline "button pressed";

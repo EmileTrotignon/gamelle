@@ -78,7 +78,12 @@ GAMELLE_NO_AUDIO=1 \
         break
       fi
     done
-    # One final capture so $out reflects the latest (settled) frame.
+    # The poll above breaks on the first non-blank frame, which can be the
+    # window after it has drawn but *before* it has finished resizing from the
+    # initial INIT x INIT square to its W x H drawing box. Capturing then crops
+    # a mis-sized/mis-placed window and yields a wildly different image. Wait a
+    # little longer for the resize to settle, then take the final capture.
+    sleep 0.5
     capture
 
     kill "$app" 2>/dev/null || true

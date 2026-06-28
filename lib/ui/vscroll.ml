@@ -36,15 +36,21 @@ let vscrollbar ui ?(min_height = 100.0) container_height state =
   let percent = if max_height <= 0.0 then 0.0 else state.offset /. max_height in
   with_vertical_drag ui drag_box percent @@ fun percent ->
   draw ui ~min_width:scroll_bar_width ~min_height ~flex_height:1.0
-    (fun ~io box ->
+    begin fun ~io box ->
+      let padding = 4. in
+      let box = Box.translate (Vec.v (-.padding) 0.) box in
+      let box = Box.shrink ~top:padding ~bottom:padding box in
       let scrollbox =
         Box.v
           (Point.v (Box.x_left box)
              (Box.y_top box +. (percent *. (Box.height box -. relative_height))))
           (Size.v (Box.width box) relative_height)
       in
-      Box.fill ~io ~color:lowlight box;
-      Box.fill ~io ~color:highlight scrollbox);
+
+      let radius = 4. in
+      Box.fill_rounded ~io ~color:lowlight ~radius box;
+      Box.fill_rounded ~io ~color:highlight ~radius scrollbox
+    end;
   percent *. max_height
 
 let v ui ?(min_height = 100.0) fn =

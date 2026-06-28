@@ -72,11 +72,33 @@ module Circle = struct
   let fill ~io ?color c = z ~io (fill_circle ?color c)
 end
 
+module Arc = struct
+  include Geometry.Arc
+
+  let draw ~io ?color a = z ~io (draw_arc ?color a)
+
+  (* Filling an arc draws the corresponding circular sector (pie slice): the
+     curve closed back to the center of the circle. *)
+  let fill ~io ?color a = z ~io (fill_arc ?color a)
+end
+
 module Box = struct
   include Geometry.Box
 
   let draw ~io ?color r = z ~io (draw_rect ?color r)
   let fill ~io ?color r = z ~io (fill_rect ?color r)
+
+  (* Clamp the corner radius to at most half the smallest side, so it never
+     self-overlaps, before handing it to the backend's rounded-rectangle
+     primitive. *)
+  let clamp_radius ~radius box =
+    Float.max 0.0 (Float.min radius (0.5 *. Float.min (width box) (height box)))
+
+  let draw_rounded ~io ?color ~radius box =
+    z ~io (draw_rounded_rect ?color ~radius:(clamp_radius ~radius box) box)
+
+  let fill_rounded ~io ?color ~radius box =
+    z ~io (fill_rounded_rect ?color ~radius:(clamp_radius ~radius box) box)
 end
 
 module Size = struct
@@ -91,6 +113,7 @@ type point = Geometry.point
 type vec = Geometry.vec
 type segment = Geometry.segment
 type circle = Geometry.circle
+type arc = Geometry.arc
 type box = Geometry.box
 type size = Geometry.size
 type polygon = Polygon.t

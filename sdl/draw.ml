@@ -123,6 +123,32 @@ let fill_rect ~io ?color rect =
   let pts = Polygon.v [ p0; p1; p2; p3 ] in
   fill_poly ~io ?color pts
 
+(* Rounded rectangles are tessellated: the four corners become quarter arcs of
+   [radius] (already clamped by the caller), strung into a single closed
+   polygon. *)
+let rounded_rect_points ~radius box =
+  let r = radius in
+  let xl = Box.x_left box and xr = Box.x_right box in
+  let yt = Box.y_top box and yb = Box.y_bottom box in
+  let pi = 4.0 *. atan 1.0 in
+  let corner cx cy start =
+    Arc.to_points (Arc.v (Point.v cx cy) r ~start ~stop:(start +. (pi /. 2.0)))
+  in
+  Polygon.v
+    (List.concat
+       [
+         corner (xl +. r) (yt +. r) pi;
+         corner (xr -. r) (yt +. r) (1.5 *. pi);
+         corner (xr -. r) (yb -. r) 0.0;
+         corner (xl +. r) (yb -. r) (0.5 *. pi);
+       ])
+
+let draw_rounded_rect ~io ?color ~radius box =
+  draw_poly ~io ?color (rounded_rect_points ~radius box)
+
+let fill_rounded_rect ~io ?color ~radius box =
+  fill_poly ~io ?color (rounded_rect_points ~radius box)
+
 let draw_circle ~io ?color circle =
   let center = Circle.center circle in
   let radius = Circle.radius circle in
@@ -135,6 +161,21 @@ let draw_circle ~io ?color circle =
         Gfx.aacircle_rgba renderer ~x ~y ~rad:radius ~r ~g ~b ~a)
   in
   ()
+
+(* Arcs are tessellated into segments: the outline as a polyline, the fill as
+   the circular sector (center + arc points) handed to [fill_poly]. *)
+let draw_arc ~io ?color arc =
+  let rec go = function
+    | p0 :: (p1 :: _ as rest) ->
+        draw_line ~io ?color (Segment.v p0 p1);
+        go rest
+    | _ -> ()
+  in
+  go (Arc.to_points arc)
+
+let fill_arc ~io ?color arc =
+  let pts = Arc.center arc :: Arc.to_points arc in
+  fill_poly ~io ?color (Polygon.v pts)
 
 let fill_circle ~io ?color circle =
   let center = Circle.center circle in
