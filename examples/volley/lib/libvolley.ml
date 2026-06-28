@@ -160,13 +160,25 @@ let step ~dt ~input1 ~input2 ({ ball; _ } as state) =
 
 (* The multiplayer wire protocol.
 
-   - Client -> server: a single [player_input] (the input for whichever side the
-     server assigned to that client), serialized with [player_input_to_yojson].
+   - Client -> server: each frame, the player's [input] with a monotonic [seq]
+     (so the server can acknowledge how far it has consumed, for client-side
+     prediction) and [for_frame], the latest server frame the client has seen
+     (so the server applies the input at the right moment via rollback, and can
+     measure round-trip time as [current_frame - for_frame]).
    - Server -> client: a [to_client] message — first a [Welcome] telling the
-     client which player it controls, then a [State] every tick to render. A
-     client connecting while both player slots are taken gets [Full] instead. *)
-type to_client = Welcome of int | State of state | Full [@@deriving yojson]
+     client which player it controls, then a [State] every tick: the server
+     [frame], the [state] to render, and [ack], the last [seq] the server has
+     applied for (player 1, player 2). A client connecting while both player
+     slots are taken gets [Full] instead. *)
+type to_server = { seq : int; for_frame : int; input : player_input }
+[@@deriving yojson]
+
+type server_state = { frame : int; state : state; ack : int * int }
+[@@deriving yojson]
+
+type to_client = Welcome of int | State of server_state | Full
+[@@deriving yojson]
 
 (* Default server address ([host:port], no scheme) shown in the menu. Edit it on
    a client to point at the machine running the server, e.g. its LAN IP. *)
-let default_server_address = "localhost:8080"
+let default_server_address = "192.168.1.8:8080"
