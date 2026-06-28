@@ -61,7 +61,17 @@
    (>= 0.6))
   conf-sdl2-gfx
   (raylib
-   (>= 2.0.0))))
+   (>= 2.0.0))
+  (ctypes-foreign
+   (>= 0.21.1))
+  (lwt
+   (>= 5.9.0))
+  (uri
+   (>= 4.0.0))
+  (conduit-lwt-unix
+   (>= 7.0.0))
+  (websocket-lwt-unix
+   (>= 2.17))))
 
 (package
  (name conf-sdl2-gfx)
@@ -70,5 +80,5 @@
 (package
  (name gamelle-all)
  (synopsis "Gamelle with all optional deps")
- (depends gamelle raylib ctypes ctypes-foreign inotify tsdl tsdl-image tsdl-mixer tsdl-ttf conf-sdl2-gfx)
+ (depends gamelle raylib ctypes ctypes-foreign inotify tsdl tsdl-image tsdl-mixer tsdl-ttf conf-sdl2-gfx lwt uri conduit-lwt-unix websocket-lwt-unix)
  (allow_empty))

@@ -19,6 +19,10 @@ depends: [
   "tsdl-mixer"
   "tsdl-ttf"
   "conf-sdl2-gfx"
+  "lwt"
+  "uri"
+  "conduit-lwt-unix"
+  "websocket-lwt-unix"
   "odoc" {with-doc}
 ]
 build: [
