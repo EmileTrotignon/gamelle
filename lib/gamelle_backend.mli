@@ -92,3 +92,8 @@ module Window : sig
   val get_fullscreen : io:io -> bool
   val size : io:io -> Size.t
 end
+
+module Clipboard : sig
+  val get : io:io -> string option
+  val set : io:io -> string -> unit
+end

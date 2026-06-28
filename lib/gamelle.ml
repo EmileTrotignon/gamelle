@@ -16,6 +16,7 @@ let clock = Gamelle_backend.clock
 
 module Sound = Gamelle_backend.Sound
 module Window = Window_
+module Clipboard = Gamelle_backend.Clipboard
 
 type io = Gamelle_backend.io
 

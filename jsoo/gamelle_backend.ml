@@ -52,6 +52,27 @@ module Window = struct
     Option.is_some (Document.fullscreen_element G.document)
 end
 
+module Clipboard = struct
+  let clipboard () = Brr_io.Clipboard.of_navigator G.navigator
+
+  (* The browser clipboard read API is asynchronous and permission gated. We
+     keep the last successfully read value and refresh it on every [get]: the
+     first call typically returns [None] (or a stale value), and the resolved
+     contents become available on a subsequent frame. *)
+  let last_read = ref None
+
+  let get ~io:_ =
+    Fut.await (Brr_io.Clipboard.read_text (clipboard ())) (function
+      | Ok s -> last_read := Some (Jstr.to_string s)
+      | Error _ -> ());
+    !last_read
+
+  let set ~io:_ text =
+    Fut.await
+      (Brr_io.Clipboard.write_text (clipboard ()) (Jstr.of_string text))
+      (fun _ -> ())
+end
+
 let finalize_frame ~io =
   Sound.end_frame ~io;
   Window.set_size ~io;

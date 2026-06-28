@@ -10,6 +10,19 @@ module Tsdl_image = Tsdl_image.Image
 module Ttf = Tsdl_ttf.Ttf
 module Window = Window
 
+module Clipboard = struct
+  let get ~io:_ =
+    if Sdl.has_clipboard_text () then begin
+      let& text = Sdl.get_clipboard_text () in
+      Some text
+    end
+    else None
+
+  let set ~io:_ text =
+    let& () = Sdl.set_clipboard_text text in
+    ()
+end
+
 let desired_time = 1.0 /. 60.0
 
 let await_event () =

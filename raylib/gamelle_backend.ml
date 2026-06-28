@@ -8,6 +8,11 @@ module Text = Text
 include Draw
 module Window = Window
 
+module Clipboard = struct
+  let get ~io:_ = Raylib.get_clipboard_text ()
+  let set ~io:_ text = Raylib.set_clipboard_text text
+end
+
 (* Headless screenshots are taken entirely outside the backend (see
    test/raylib_screenshot.sh): the program runs normally under Xvfb and the
    virtual framebuffer is captured externally. Audio init is skipped when no

@@ -1368,6 +1368,23 @@ module Window : sig
       ]} *)
 end
 
+module Clipboard : sig
+  (** Read from and write to the system clipboard. *)
+
+  val get : io:io -> string option
+  (** [get ~io] returns the current textual contents of the system clipboard,
+      or [None] if it is empty or unavailable.
+
+      On the web backend, clipboard access is asynchronous and permission
+      gated: [get] returns the most recently resolved value, so the first call
+      typically returns [None] and the contents become available on a later
+      frame. *)
+
+  val set : io:io -> string -> unit
+  (** [set ~io text] sets the textual contents of the system clipboard to
+      [text]. *)
+end
+
 (** {1 Animations} *)
 
 val clock : io:io -> float
