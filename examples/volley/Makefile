@@ -1,4 +1,4 @@
-.PHONY: run run-sdl html
+.PHONY: run run-sdl html html-zip
 
 run-bin:
 	dune exec --root=. ./volley_bin.exe
@@ -12,3 +12,7 @@ run:
 html:
 	dune build --root=. --profile=release volley.html
 	xdg-open _build/default/volley.html
+
+html-zip:
+	dune build --root=. --profile=release volley.html.zip
+	@echo "built _build/default/volley.html.zip"

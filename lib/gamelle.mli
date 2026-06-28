@@ -1471,6 +1471,44 @@ module Window : sig
       ]} *)
 end
 
+(** {1 Networking} *)
+
+module Net : sig
+  (** A websocket connection to a server, for multiplayer games.
+
+      The transport runs asynchronously — a background domain running Lwt on the
+      native backends, the browser event loop on the [js_of_ocaml] backend — so
+      that the game loop never has to block waiting on the network. Each frame
+      you push outgoing messages with {!send} and drain whatever has arrived
+      with {!poll}; neither ever blocks.
+
+      Messages are arbitrary strings; serialize your own payloads (for example
+      with the [to_yojson]/[of_yojson] functions on {!Input_event}, {!Physics}
+      and the geometry types).
+
+      {b Not implemented on the SDL backend} — every function raises. Use the
+      [js_of_ocaml] or Raylib backends for networked games. *)
+
+  type t
+  (** A websocket connection. *)
+
+  val connect : string -> t
+  (** [connect url] opens a websocket connection to [url] (e.g.
+      ["ws://localhost:8080"]). Connection happens in the background; it is safe
+      to {!send} and {!poll} immediately (messages sent before the socket is
+      open are dropped). *)
+
+  val send : t -> string -> unit
+  (** [send t msg] queues [msg] to be sent to the server. Never blocks. *)
+
+  val poll : t -> string list
+  (** [poll t] returns the messages received since the previous call, in arrival
+      order. Never blocks; returns [[]] when nothing has arrived. *)
+
+  val close : t -> unit
+  (** [close t] closes the connection. *)
+end
+
 (** {1 Animations} *)
 
 val clock : io:io -> float
@@ -1644,6 +1682,13 @@ module Physics : sig
 
   type t
   (** The type of rigid bodies. *)
+
+  val to_yojson : t -> Yojson.Safe.t
+  (** [to_yojson t] serializes the rigid body [t] to JSON. Useful for sending
+      authoritative game state over the network, see {!Net}. *)
+
+  val of_yojson : Yojson.Safe.t -> (t, string) result
+  (** [of_yojson json] deserializes a rigid body from JSON. *)
 
   type kind = Movable | Immovable
 

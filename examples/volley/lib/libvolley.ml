@@ -1,6 +1,7 @@
 open Gamelle
 
 type player = { shape : Physics.t; jumps : int; grounded : bool }
+[@@deriving yojson]
 
 type state = {
   player1 : player;
@@ -9,6 +10,7 @@ type state = {
   points1 : int;
   points2 : int;
 }
+[@@deriving yojson]
 
 (* A player's interaction with the game, expressed in terms of what the player
    wants to do ("move left", "jump") rather than which keys are held. This is
@@ -127,3 +129,44 @@ let update_players ~dt ~gravity ~input1 ~input2
     player1 = update_player ~dt ~gravity ~input:input1 ~player:player1;
     player2 = update_player ~dt ~gravity ~input:input2 ~player:player2;
   }
+
+(* The whole authoritative simulation step, free of any rendering or [io]: move
+   the ball, score and reset when it lands, otherwise advance both players from
+   their inputs and resolve collisions. This is the single source of truth for
+   the game rules, shared by the singleplayer loop (run locally) and the
+   multiplayer server (run on the host). *)
+let step ~dt ~input1 ~input2 ({ ball; _ } as state) =
+  if Vec.y (Physics.center ball) > 440.0 then
+    if Vec.x (Physics.center ball) < 500.0 then
+      { state with ball = init_ball (); points2 = state.points2 + 1 }
+    else { state with ball = init_ball (); points1 = state.points1 + 1 }
+  else
+    let gravity = Vec.v 0.0 (1500.0 *. dt) in
+    let ball = Physics.add_velocity gravity ball in
+    let ball = Physics.update ~dt ball in
+    let { player1; player2; _ } =
+      update_players ~dt ~gravity ~input1 ~input2 state
+    in
+    let open Physics.CollisionOp in
+    let+ player1_shape = obj player1.shape
+    and+ player2_shape = obj player2.shape
+    and+ ball = obj ball
+    and+ _world = obj_list world in
+    let+ player1_shape = obj player1_shape and+ _ = obj block_player1 in
+    let+ player2_shape = obj player2_shape and+ _ = obj block_player2 in
+    let player1 = { player1 with shape = player1_shape } in
+    let player2 = { player2 with shape = player2_shape } in
+    { state with player1; player2; ball }
+
+(* The multiplayer wire protocol.
+
+   - Client -> server: a single [player_input] (the input for whichever side the
+     server assigned to that client), serialized with [player_input_to_yojson].
+   - Server -> client: a [to_client] message — first a [Welcome] telling the
+     client which player it controls, then a [State] every tick to render. A
+     client connecting while both player slots are taken gets [Full] instead. *)
+type to_client = Welcome of int | State of state | Full [@@deriving yojson]
+
+(* Default server address ([host:port], no scheme) shown in the menu. Edit it on
+   a client to point at the machine running the server, e.g. its LAN IP. *)
+let default_server_address = "localhost:8080"

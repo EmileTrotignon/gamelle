@@ -23,6 +23,7 @@ let clock = Gamelle_backend.clock
 
 module Sound = Gamelle_backend.Sound
 module Window = Window_
+module Net = Gamelle_backend.Net
 
 type io = Gamelle_backend.io
 

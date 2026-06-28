@@ -1,4 +1,16 @@
 (executable
  (name main)
  (public_name volley-server)
- (libraries gamelle websocket-lwt-unix))
+ ; [libvolley] depends on the virtual [gamelle] library, so the server has to
+ ; link a concrete backend even though it never opens a window. [gamelle.raylib]
+ ; matches the native client; nothing in it is initialised unless [run] is
+ ; called, which the server never does.
+ (libraries
+  libvolley
+  gamelle.raylib
+  websocket-lwt-unix
+  conduit-lwt-unix
+  lwt
+  lwt.unix
+  unix
+  yojson))

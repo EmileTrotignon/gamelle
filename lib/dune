@@ -1,9 +1,9 @@
 (library
  (public_name gamelle)
  (name gamelle)
- (libraries gamelle_common yojson)
+ (libraries gamelle_common yojson ppx_deriving_yojson.runtime)
  (preprocess
-  (pps gamelle.ppx_ui))
+  (pps gamelle.ppx_ui ppx_deriving_yojson))
  (virtual_modules gamelle_backend))
 
 (include_subdirs qualified)

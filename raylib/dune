@@ -5,5 +5,15 @@
  (name gamelle_raylib)
  (optional)
  (private_modules bitmap common draw events_raylib font_ sound text window)
- (libraries gamelle_common uuseg raylib ctypes ctypes-foreign)
+ (libraries
+  gamelle_common
+  uuseg
+  raylib
+  ctypes
+  ctypes-foreign
+  lwt
+  lwt.unix
+  uri
+  conduit-lwt-unix
+  websocket-lwt-unix)
  (implements gamelle))

@@ -54,3 +54,11 @@
     html
     --template=volley.template.html
     --script=volley_js.bc.js))))
+
+; The exported html is ~1MB (it inlines the js_of_ocaml bundle), too large for
+; some upload limits. This rule produces a real zip archive of it for sharing.
+(rule
+ (target volley.html.zip)
+ (deps volley.html)
+ (action
+  (run python3 -m zipfile -c volley.html.zip volley.html)))

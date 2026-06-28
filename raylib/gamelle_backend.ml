@@ -49,3 +49,108 @@ let run state update =
     Raylib.close_audio_device ()
   end;
   Raylib.close_window ()
+
+module Net = struct
+  (* The websocket runs on its own domain with its own [Lwt_main.run]. All Lwt
+     activity stays inside that domain (Lwt is not multicore-safe); the only
+     contact with the game domain is through two mutex-protected queues, which is
+     enough for the game to [send]/[poll] without ever blocking on the network.
+  *)
+  type t = {
+    recv : string Queue.t;
+    recv_mutex : Mutex.t;
+    send_q : string Queue.t;
+    send_mutex : Mutex.t;
+    mutable closed : bool;
+  }
+
+  let push mutex q v =
+    Mutex.lock mutex;
+    Queue.add v q;
+    Mutex.unlock mutex
+
+  let drain mutex q =
+    Mutex.lock mutex;
+    let rec go acc = if Queue.is_empty q then acc else go (Queue.pop q :: acc) in
+    let items = go [] in
+    Mutex.unlock mutex;
+    List.rev items
+
+  let connect url =
+    let t =
+      {
+        recv = Queue.create ();
+        recv_mutex = Mutex.create ();
+        send_q = Queue.create ();
+        send_mutex = Mutex.create ();
+        closed = false;
+      }
+    in
+    let _ : unit Domain.t =
+      Domain.spawn (fun () ->
+          let open Lwt.Syntax in
+          let main =
+            Lwt.catch
+              (fun () ->
+                let uri = Uri.of_string url in
+                (* conduit's resolver does not know the [ws]/[wss] schemes, so
+                   resolve as [http]/[https] while keeping the original [ws] uri
+                   for the websocket handshake itself. *)
+                let resolve_uri =
+                  match Uri.scheme uri with
+                  | Some "ws" -> Uri.with_scheme uri (Some "http")
+                  | Some "wss" -> Uri.with_scheme uri (Some "https")
+                  | _ -> uri
+                in
+                let* endp =
+                  Resolver_lwt.resolve_uri ~uri:resolve_uri
+                    Resolver_lwt_unix.system
+                in
+                let* client =
+                  Conduit_lwt_unix.endp_to_client
+                    ~ctx:(Lazy.force Conduit_lwt_unix.default_ctx)
+                    endp
+                in
+                (* The default [Sec-WebSocket-Key] generator pulls from
+                   mirage-crypto-rng, which would need separate initialisation;
+                   a game handshake key needs no crypto-grade randomness, so
+                   supply our own. *)
+                let random_string n =
+                  String.init n (fun _ -> Char.chr (Random.int 256))
+                in
+                let* conn =
+                  Websocket_lwt_unix.connect ~random_string client uri
+                in
+                let rec recv_loop () =
+                  let* frame = Websocket_lwt_unix.read conn in
+                  match frame.Websocket.Frame.opcode with
+                  | Websocket.Frame.Opcode.Close ->
+                      Websocket_lwt_unix.close_transport conn
+                  | _ ->
+                      push t.recv_mutex t.recv frame.Websocket.Frame.content;
+                      recv_loop ()
+                in
+                let rec send_loop () =
+                  if t.closed then Websocket_lwt_unix.close_transport conn
+                  else
+                    let* () =
+                      Lwt_list.iter_s
+                        (fun content ->
+                          Websocket_lwt_unix.write conn
+                            (Websocket.Frame.create ~content ()))
+                        (drain t.send_mutex t.send_q)
+                    in
+                    let* () = Lwt_unix.sleep 0.002 in
+                    send_loop ()
+                in
+                Lwt.pick [ recv_loop (); send_loop () ])
+              (fun _exn -> Lwt.return_unit)
+          in
+          Lwt_main.run main)
+    in
+    t
+
+  let send t msg = push t.send_mutex t.send_q msg
+  let poll t = drain t.recv_mutex t.recv
+  let close t = t.closed <- true
+end

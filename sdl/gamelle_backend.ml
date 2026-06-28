@@ -111,3 +111,14 @@ let run () =
   Sdl.destroy_window window
 
 let run state update = State.run state update ~start:run ~reload:Replay.reload
+
+module Net = struct
+  (* TODO: networking is not implemented on the SDL backend. *)
+  type t = unit
+
+  let todo () = failwith "Net is not implemented on the SDL backend (TODO)"
+  let connect _ = todo ()
+  let send _ _ = todo ()
+  let poll _ = todo ()
+  let close _ = todo ()
+end

@@ -11,6 +11,39 @@ module Transform = Gamelle_common.Transform
 include Draw
 include Jsoo
 
+module Net = struct
+  (* The browser WebSocket API is event-based: [onmessage] fires on the JS event
+     loop between animation frames. We just buffer incoming text frames in a
+     queue that [poll] drains; no Lwt or promises are involved. *)
+  type t = { ws : Brr_io.Websocket.t; recv : string Queue.t }
+
+  let connect url =
+    let ws = Brr_io.Websocket.create (Jstr.of_string url) in
+    let recv = Queue.create () in
+    let _listener : Ev.listener =
+      Ev.listen Brr_io.Message.Ev.message
+        (fun ev ->
+          let data : Jstr.t = Brr_io.Message.Ev.data (Ev.as_type ev) in
+          Queue.add (Jstr.to_string data) recv)
+        (Brr_io.Websocket.as_target ws)
+    in
+    { ws; recv }
+
+  let send t msg =
+    (* [send] throws if the socket is not open yet, so drop until it is. *)
+    if Brr_io.Websocket.ready_state t.ws = Brr_io.Websocket.Ready_state.open'
+    then Brr_io.Websocket.send_string t.ws (Jstr.of_string msg)
+
+  let poll t =
+    let rec drain acc =
+      if Queue.is_empty t.recv then List.rev acc
+      else drain (Queue.pop t.recv :: acc)
+    in
+    drain []
+
+  let close t = Brr_io.Websocket.close t.ws
+end
+
 let prev_now = ref 0.0
 let now = ref 0.0
 let clock = Gamelle_common.clock

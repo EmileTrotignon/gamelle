@@ -2,7 +2,7 @@
 open Gamelle_backend
 open Draw_geometry
 
-type kind = Movable | Immovable
+type kind = Movable | Immovable [@@deriving yojson]
 
 type t = {
   pos : Vec.t;
@@ -17,6 +17,7 @@ type t = {
   static_friction : float;
   dynamic_friction : float;
 }
+[@@deriving yojson]
 
 let shape t = t.shape
 let center t = t.pos

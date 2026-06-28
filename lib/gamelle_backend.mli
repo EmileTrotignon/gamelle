@@ -92,3 +92,19 @@ module Window : sig
   val get_fullscreen : io:io -> bool
   val size : io:io -> Size.t
 end
+
+module Net : sig
+  (* A websocket connection. The transport runs asynchronously (a background
+     domain running Lwt on native backends, the browser event loop on jsoo); the
+     game reads and writes it non-blockingly, once per frame, via [poll] and
+     [send]. *)
+  type t
+
+  val connect : string -> t
+  val send : t -> string -> unit
+
+  (* Messages received since the previous [poll], in arrival order. Never
+     blocks. *)
+  val poll : t -> string list
+  val close : t -> unit
+end
