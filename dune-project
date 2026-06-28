@@ -37,6 +37,10 @@
    (>= 3.3.1))
   (ppx_blob
    (>= 0.7.2))
+  (yojson
+   (>= 2.0.0))
+  (ppx_deriving_yojson
+   (>= 3.7.0))
   (uuseg
    (>= 15.1.0))
   (otfm

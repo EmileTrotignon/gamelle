@@ -1,4 +1,5 @@
 type t = Segment of Segment.t | Circle of Circle.t | Polygon of Polygon.t
+[@@deriving yojson]
 
 let segment seg = Segment seg
 let circle c = Circle c

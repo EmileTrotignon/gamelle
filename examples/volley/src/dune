@@ -1,6 +1,6 @@
 (library
  (name volley)
- (libraries gamelle)
+ (libraries gamelle libvolley)
  (preprocess
   (pps gamelle.ppx_ui)))
 

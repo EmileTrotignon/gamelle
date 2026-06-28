@@ -1,4 +1,4 @@
-type t = { start : Point.t; end_ : Point.t }
+type t = { start : Point.t; end_ : Point.t } [@@deriving yojson]
 
 let v start end_ =
   (* This way, polymorphic equality works on segments *)

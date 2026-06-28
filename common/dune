@@ -1,9 +1,9 @@
 (library
  (public_name gamelle.common)
  (name gamelle_common)
- (libraries gg color otfm)
+ (libraries gg color otfm yojson ppx_deriving_yojson.runtime)
  (preprocess
-  (pps ppx_blob))
+  (pps ppx_blob ppx_deriving_yojson))
  (preprocessor_deps ../data/FreeMono.ttf))
 
 (include_subdirs qualified)

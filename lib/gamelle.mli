@@ -127,6 +127,14 @@ module Color : sig
   val turquoise : t
   val brown : t
   val silver : t
+
+  (** {1 Serialization} *)
+
+  val to_yojson : t -> Yojson.Safe.t
+  (** [to_yojson c] serializes the color [c] to JSON. *)
+
+  val of_yojson : Yojson.Safe.t -> (t, string) result
+  (** [of_yojson json] deserializes a color from JSON. *)
 end
 
 type xy = { x : float; y : float }
@@ -181,6 +189,11 @@ module Point : sig
 
   val equal : t -> t -> bool
   (** [equal a b] is [true] if [a] and [b] are approximately equal. *)
+
+  (** {2 Serialization} *)
+
+  val to_yojson : t -> Yojson.Safe.t
+  val of_yojson : Yojson.Safe.t -> (t, string) result
 end
 
 module Vec : sig
@@ -255,6 +268,11 @@ module Vec : sig
 
   val equal : t -> t -> bool
   (** [equal a b] is [true] if [a] and [b] are approximately equal. *)
+
+  (** {2 Serialization} *)
+
+  val to_yojson : t -> Yojson.Safe.t
+  val of_yojson : Yojson.Safe.t -> (t, string) result
 end
 
 (** {2 Geometry} *)
@@ -286,6 +304,11 @@ module Size : sig
 
   val pp : Format.formatter -> t -> unit
   (** [Format.printf "%a" pp t] pretty prints the size [t] dimensions. *)
+
+  (** {2 Serialization} *)
+
+  val to_yojson : t -> Yojson.Safe.t
+  val of_yojson : Yojson.Safe.t -> (t, string) result
 end
 
 module Segment : sig
@@ -328,6 +351,11 @@ module Segment : sig
   val intersect : t -> t -> bool
   (** [intersect a b] returns [true] if segment [a] intersects segment [b],
       [false] otherwise. *)
+
+  (** {2 Serialization} *)
+
+  val to_yojson : t -> Yojson.Safe.t
+  val of_yojson : Yojson.Safe.t -> (t, string) result
 end
 
 module Box : sig
@@ -454,6 +482,11 @@ module Box : sig
 
   val random_mem : t -> Point.t
   (** [random_mem b] returns a random point inside the box [b]. *)
+
+  (** {2 Serialization} *)
+
+  val to_yojson : t -> Yojson.Safe.t
+  val of_yojson : Yojson.Safe.t -> (t, string) result
 end
 
 module Circle : sig
@@ -505,6 +538,11 @@ module Circle : sig
   val intersections : t -> t -> Point.t list
   (** [intersections a b] returns the list of intersections points between the
       circles [a] and [b]. *)
+
+  (** {2 Serialization} *)
+
+  val to_yojson : t -> Yojson.Safe.t
+  val of_yojson : Yojson.Safe.t -> (t, string) result
 end
 
 module Arc : sig
@@ -567,6 +605,11 @@ module Arc : sig
 
   val translate : Vec.t -> t -> t
   (** [translate v a] translates the arc [a] by vector [v]. *)
+
+  (** {2 Serialization} *)
+
+  val to_yojson : t -> Yojson.Safe.t
+  val of_yojson : Yojson.Safe.t -> (t, string) result
 end
 
 module Polygon : sig
@@ -605,6 +648,11 @@ module Polygon : sig
 
   val translate : Vec.t -> t -> t
   (** [translate v p] translates the polygon [p] by vector [v]. *)
+
+  (** {2 Serialization} *)
+
+  val to_yojson : t -> Yojson.Safe.t
+  val of_yojson : Yojson.Safe.t -> (t, string) result
 end
 
 module Shape : sig
@@ -666,6 +714,11 @@ module Shape : sig
   val intersections : t -> t -> Point.t list
   (** [intersections a b] returns the list of intersections points between the
       shapes [a] and [b]. *)
+
+  (** {2 Serialization} *)
+
+  val to_yojson : t -> Yojson.Safe.t
+  val of_yojson : Yojson.Safe.t -> (t, string) result
 end
 
 (** {1:Assets Assets} *)
@@ -948,6 +1001,12 @@ module Input : sig
     | `unknown_key ]
   (** The type of player inputs. *)
 
+  val key_to_yojson : key -> Yojson.Safe.t
+  (** [key_to_yojson k] serializes the key [k] to JSON. *)
+
+  val key_of_yojson : Yojson.Safe.t -> (key, string) result
+  (** [key_of_yojson json] deserializes a key from JSON. *)
+
   val is_pressed : io:io -> key -> bool
   (** [is_pressed ~io key] returns [true] if the player is currently holding
       [key]. *)
@@ -967,6 +1026,50 @@ module Input : sig
 
   val wheel_delta : io:io -> float
   (** [wheel_delta ~io] returns the amount of change of the mouse wheel. *)
+end
+
+module Input_event : sig
+  (** Query a deserialized input event.
+
+      This mirrors {!Input}, but reads from an explicit, serializable event
+      value instead of [~io]. It is meant for networking (e.g. a multiplayer
+      server): capture the current input on the client with {!of_io}, serialize
+      it with {!to_yojson}, send it over the wire, then query the reconstructed
+      value with {!of_yojson} on the other side.
+
+      Unlike {!Input}, there is no view transform or clipping applied here, so
+      {!mouse_pos} returns the raw coordinates carried by the event. *)
+
+  type t
+  (** A serializable snapshot of player inputs (mouse and keyboard). *)
+
+  val of_io : io:io -> t
+  (** [of_io ~io] captures the current input event from [io]. *)
+
+  val to_yojson : t -> Yojson.Safe.t
+  (** [to_yojson e] serializes the event [e] to JSON. *)
+
+  val of_yojson : Yojson.Safe.t -> (t, string) result
+  (** [of_yojson json] deserializes an event from JSON. *)
+
+  val is_pressed : t -> Input.key -> bool
+  (** [is_pressed e key] returns [true] if [key] is held in the event [e]. *)
+
+  val is_down : t -> Input.key -> bool
+  (** [is_down e key] returns [true] if [key] was just pressed in the event [e].
+  *)
+
+  val is_up : t -> Input.key -> bool
+  (** [is_up e key] returns [true] if [key] was just released in the event [e].
+  *)
+
+  val mouse_pos : t -> Point.t
+  (** [mouse_pos e] returns the raw mouse coordinates carried by the event [e].
+  *)
+
+  val wheel_delta : t -> float
+  (** [wheel_delta e] returns the mouse wheel change carried by the event [e].
+  *)
 end
 
 module Ui : sig

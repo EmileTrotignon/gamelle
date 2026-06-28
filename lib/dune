@@ -1,7 +1,7 @@
 (library
  (public_name gamelle)
  (name gamelle)
- (libraries gamelle_common)
+ (libraries gamelle_common yojson)
  (preprocess
   (pps gamelle.ppx_ui))
  (virtual_modules gamelle_backend))

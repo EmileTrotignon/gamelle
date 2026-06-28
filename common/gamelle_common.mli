@@ -2,6 +2,7 @@
 
 module Transform : module type of Transform
 module Events_backend : module type of Events_backend
+module Event_query : module type of Event_query
 module Font : module type of Font
 module Font_metrics : module type of Font_metrics
 module Delayed : module type of Delayed

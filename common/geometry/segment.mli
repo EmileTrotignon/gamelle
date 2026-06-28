@@ -1,4 +1,4 @@
-type t
+type t [@@deriving yojson]
 
 val v : Point.t -> Point.t -> t
 val start : t -> Point.t

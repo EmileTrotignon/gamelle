@@ -1,6 +1,6 @@
 open Xy
 
-type t = { tl : Point.t; size : Size.t }
+type t = { tl : Point.t; size : Size.t } [@@deriving yojson]
 
 let v tl size = { tl; size }
 

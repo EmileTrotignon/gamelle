@@ -1,6 +1,7 @@
 module Transform = Transform
 module View = View
 module Events_backend = Events_backend
+module Event_query = Event_query
 module Font = Font
 module Font_metrics = Font_metrics
 module Delayed = Delayed

@@ -4,6 +4,7 @@ type t = {
   start_angle : float;
   end_angle : float;
 }
+[@@deriving yojson]
 
 let v center radius ~start ~stop =
   if radius < 0.0 then invalid_arg "Arc.v: negative radius";

@@ -8,6 +8,13 @@ module Routine = Routine
 module View = View
 module Transform = Gamelle_common.Transform
 module Input = Event
+
+module Input_event = struct
+  include Gamelle_common.Event_query
+
+  let of_io ~(io : Gamelle_backend.io) = !(io.Gamelle_common.event)
+end
+
 module Bitmap = Bitmap_
 include Draw_geometry
 

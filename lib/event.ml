@@ -3,6 +3,9 @@ open Draw_geometry
 
 type key = Events_backend.key
 
+let key_to_yojson = Events_backend.key_to_yojson
+let key_of_yojson = Events_backend.key_of_yojson
+
 module Strings = Events_backend.Strings
 
 let mouse_pos ~io =

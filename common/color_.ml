@@ -29,3 +29,25 @@ let indigo = rgb 75 0 130
 let turquoise = rgb 64 224 208
 let brown = rgb 165 42 42
 let silver = rgb 192 192 192
+
+(* Serialize as the four raw linear components [r; g; b; a] so the value
+   round-trips exactly. *)
+let to_yojson c : Yojson.Safe.t =
+  `List [ `Float (r c); `Float (g c); `Float (b c); `Float (a c) ]
+
+let of_yojson (json : Yojson.Safe.t) =
+  let number = function
+    | `Float x -> Ok x
+    | `Int n -> Ok (float_of_int n)
+    | _ -> Error "Color_.of_yojson: expected a number"
+  in
+  match json with
+  | `List [ red; green; blue; alpha ] -> (
+      match (number red, number green, number blue, number alpha) with
+      | Ok red, Ok green, Ok blue, Ok alpha -> Ok (v red green blue alpha)
+      | (Error _ as e), _, _, _
+      | _, (Error _ as e), _, _
+      | _, _, (Error _ as e), _
+      | _, _, _, (Error _ as e) ->
+          e)
+  | _ -> Error "Color_.of_yojson: expected a list of four numbers"

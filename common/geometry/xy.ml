@@ -1,4 +1,4 @@
-type t = { x : float; y : float }
+type t = { x : float; y : float } [@@deriving yojson]
 
 let zero = { x = 0.0; y = 0.0 }
 let v x y = { x; y }
