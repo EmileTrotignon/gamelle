@@ -1515,8 +1515,8 @@ module Net : sig
       order. Never blocks; returns [[]] when nothing has arrived. *)
 
   val status : t -> status
-  (** [status t] returns the current state of the connection.
-      Poll it each frame to react to the socket opening, closing, or failing. *)
+  (** [status t] returns the current state of the connection. Poll it each frame
+      to react to the socket opening, closing, or failing. *)
 
   val is_connected : t -> bool
   (** [is_connected t] is [true] when the socket is open and usable, i.e.

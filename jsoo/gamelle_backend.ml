@@ -15,11 +15,7 @@ module Net = struct
   (* The browser WebSocket API is event-based: [onmessage] fires on the JS event
      loop between animation frames. We just buffer incoming text frames in a
      queue that [poll] drains; no Lwt or promises are involved. *)
-  type status =
-    | Connecting
-    | Connected
-    | Closed
-    | Error of string
+  type status = Connecting | Connected | Closed | Error of string
 
   type t = {
     ws : Brr_io.Websocket.t;

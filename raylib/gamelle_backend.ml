@@ -56,11 +56,7 @@ module Net = struct
      contact with the game domain is through two mutex-protected queues, which is
      enough for the game to [send]/[poll] without ever blocking on the network.
   *)
-  type status =
-    | Connecting
-    | Connected
-    | Closed
-    | Error of string
+  type status = Connecting | Connected | Closed | Error of string
 
   type t = {
     recv : string Queue.t;

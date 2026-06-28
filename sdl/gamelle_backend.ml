@@ -115,12 +115,7 @@ let run state update = State.run state update ~start:run ~reload:Replay.reload
 module Net = struct
   (* TODO: networking is not implemented on the SDL backend. *)
   type t = unit
-
-  type status =
-    | Connecting
-    | Connected
-    | Closed
-    | Error of string
+  type status = Connecting | Connected | Closed | Error of string
 
   let todo () = failwith "Net is not implemented on the SDL backend (TODO)"
   let connect _ = todo ()

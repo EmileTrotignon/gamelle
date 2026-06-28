@@ -101,10 +101,10 @@ module Net : sig
   type t
 
   type status =
-    | Connecting  (* handshake in progress *)
-    | Connected  (* open and usable *)
-    | Closed  (* closed cleanly, by us or the server *)
-    | Error of string  (* the connection failed; the string describes why *)
+    | Connecting (* handshake in progress *)
+    | Connected (* open and usable *)
+    | Closed (* closed cleanly, by us or the server *)
+    | Error of string (* the connection failed; the string describes why *)
 
   val connect : string -> t
   val send : t -> string -> unit
