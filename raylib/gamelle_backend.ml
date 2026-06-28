@@ -71,7 +71,9 @@ module Net = struct
 
   let drain mutex q =
     Mutex.lock mutex;
-    let rec go acc = if Queue.is_empty q then acc else go (Queue.pop q :: acc) in
+    let rec go acc =
+      if Queue.is_empty q then acc else go (Queue.pop q :: acc)
+    in
     let items = go [] in
     Mutex.unlock mutex;
     List.rev items

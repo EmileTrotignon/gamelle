@@ -37,6 +37,7 @@ let with_lag f =
         let* () = Lwt_unix.sleep half_lag in
         f ())
   else Lwt.async f
+
 let window = 60 (* keep ~1s of history; inputs older than this are clamped *)
 let n = 128 (* ring buffer size, comfortably larger than [window] *)
 
@@ -145,7 +146,9 @@ let handler client =
             release ();
             Lwt.return_unit
         | _ ->
-            with_lag (fun () -> handle_frame slot ws_frame; Lwt.return_unit);
+            with_lag (fun () ->
+                handle_frame slot ws_frame;
+                Lwt.return_unit);
             loop ()
       in
       Lwt.catch loop (fun _ ->
@@ -157,7 +160,11 @@ let was_idle = ref true
 
 let reset_sim () =
   Array.fill snap 0 n initial_state;
-  Array.iter (fun a -> a.(0) <- no_input; a.(1) <- no_input) inp;
+  Array.iter
+    (fun a ->
+      a.(0) <- no_input;
+      a.(1) <- no_input)
+    inp;
   frame := 0;
   dirty_from := None;
   last_points := (0, 0);
@@ -194,19 +201,23 @@ let rec tick () =
     was_idle := false;
     (* Replay from the earliest changed frame (rollback), then advance one new
        frame. When nothing changed this is just a single forward step. *)
-    let start = match !dirty_from with Some g -> min g !frame | None -> !frame in
+    let start =
+      match !dirty_from with Some g -> min g !frame | None -> !frame
+    in
     dirty_from := None;
     for f = start to !frame do
       snap.((f + 1) mod n) <-
-        step ~dt ~input1:inp.(f mod n).(0) ~input2:inp.(f mod n).(1)
+        step ~dt
+          ~input1:inp.(f mod n).(0)
+          ~input2:inp.(f mod n).(1)
           snap.(f mod n)
     done;
     incr frame;
     (* Carry held inputs forward to the new current frame (jump is momentary, so
        it never carries; it only ever applies on the frame it was pressed). *)
     let prev = (!frame - 1) mod n and cur = !frame mod n in
-    inp.(cur).(0) <- { inp.(prev).(0) with jump = false };
-    inp.(cur).(1) <- { inp.(prev).(1) with jump = false };
+    inp.(cur).(0) <- { (inp.(prev).(0)) with jump = false };
+    inp.(cur).(1) <- { (inp.(prev).(1)) with jump = false };
     let s = snap.(!frame mod n) in
     let pts = (s.points1, s.points2) in
     if pts <> !last_points then begin
@@ -243,12 +254,13 @@ let local_ip () =
 let () =
   log "listening on port %d (all interfaces)" port;
   log "  this machine:   ws://localhost:%d" port;
-  (match (try local_ip () with _ -> None) with
+  (match try local_ip () with _ -> None with
   | Some ip -> log "  on the network: ws://%s:%d" ip port
   | None -> log "  (could not determine LAN IP; use this machine's address)");
   let server =
     Websocket_lwt_unix.establish_server
       ~check_request:(fun _ -> true)
-      ~mode:(`TCP (`Port port)) handler
+      ~mode:(`TCP (`Port port))
+      handler
   in
   Lwt_main.run (Lwt.join [ server; tick () ])

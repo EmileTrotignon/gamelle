@@ -99,7 +99,8 @@ let rec multiplayer ~io conn ~me ~server_frame ~seq ~pending state =
         | Ok (State s) -> (me, s.frame, s.state, Some s.ack)
         | Ok Full -> raise Exit (* server already has two players *)
         | Error _ | (exception _) -> (me, sf, st, ack))
-      (me, server_frame, state, None) (Net.poll conn)
+      (me, server_frame, state, None)
+      (Net.poll conn)
   in
   (* Drop inputs the server has confirmed; keep the rest to replay. Cap the
      backlog so a dead connection can't make us replay an ever-growing list. *)
@@ -119,7 +120,9 @@ let rec multiplayer ~io conn ~me ~server_frame ~seq ~pending state =
     let predict who paddle =
       let block = if me = 1 then block_player1 else block_player2 in
       let predicted =
-        List.fold_left (fun p (_, inp) -> predict_step ~block p inp) paddle pending
+        List.fold_left
+          (fun p (_, inp) -> predict_step ~block p inp)
+          paddle pending
       in
       who predicted
     in
@@ -170,6 +173,7 @@ let main ~io =
   | `Single -> singleplayer ~io initial_state
   | `Multi address ->
       let conn = Net.connect ("ws://" ^ address) in
-      multiplayer ~io conn ~me:0 ~server_frame:0 ~seq:0 ~pending:[] initial_state
+      multiplayer ~io conn ~me:0 ~server_frame:0 ~seq:0 ~pending:[]
+        initial_state
 
 let () = Gamelle.run_no_loop main
