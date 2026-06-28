@@ -1492,18 +1492,35 @@ module Net : sig
   type t
   (** A websocket connection. *)
 
+  (** The lifecycle of a connection. *)
+  type status =
+    | Connecting  (** The handshake is still in progress. *)
+    | Connected  (** The socket is open; {!send} and {!poll} work. *)
+    | Closed  (** Closed cleanly, either by {!close} or by the server. *)
+    | Error of string
+        (** The connection failed; the string describes the error. *)
+
   val connect : string -> t
   (** [connect url] opens a websocket connection to [url] (e.g.
       ["ws://localhost:8080"]). Connection happens in the background; it is safe
       to {!send} and {!poll} immediately (messages sent before the socket is
-      open are dropped). *)
+      open are dropped). Use {!status} or {!is_connected} to tell when the
+      socket is actually open, and to detect failures. *)
 
   val send : t -> string -> unit
-  (** [send t msg] queues [msg] to be sent to the server. Never blocks. *)
+  (** [send t msg] queues [msg] to be sent to the server. *)
 
   val poll : t -> string list
   (** [poll t] returns the messages received since the previous call, in arrival
       order. Never blocks; returns [[]] when nothing has arrived. *)
+
+  val status : t -> status
+  (** [status t] returns the current state of the connection.
+      Poll it each frame to react to the socket opening, closing, or failing. *)
+
+  val is_connected : t -> bool
+  (** [is_connected t] is [true] when the socket is open and usable, i.e.
+      [status t = Connected]. *)
 
   val close : t -> unit
   (** [close t] closes the connection. *)

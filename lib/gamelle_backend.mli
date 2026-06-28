@@ -100,11 +100,21 @@ module Net : sig
      [send]. *)
   type t
 
+  type status =
+    | Connecting  (* handshake in progress *)
+    | Connected  (* open and usable *)
+    | Closed  (* closed cleanly, by us or the server *)
+    | Error of string  (* the connection failed; the string describes why *)
+
   val connect : string -> t
   val send : t -> string -> unit
 
   (* Messages received since the previous [poll], in arrival order. Never
      blocks. *)
   val poll : t -> string list
+
+  (* Current state of the connection. Never blocks. *)
+  val status : t -> status
+  val is_connected : t -> bool
   val close : t -> unit
 end

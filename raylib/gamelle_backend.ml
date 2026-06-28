@@ -56,12 +56,20 @@ module Net = struct
      contact with the game domain is through two mutex-protected queues, which is
      enough for the game to [send]/[poll] without ever blocking on the network.
   *)
+  type status =
+    | Connecting
+    | Connected
+    | Closed
+    | Error of string
+
   type t = {
     recv : string Queue.t;
     recv_mutex : Mutex.t;
     send_q : string Queue.t;
     send_mutex : Mutex.t;
     mutable closed : bool;
+    (* Written from the network domain, read from the game domain. *)
+    status : status Atomic.t;
   }
 
   let push mutex q v =
@@ -86,6 +94,7 @@ module Net = struct
         send_q = Queue.create ();
         send_mutex = Mutex.create ();
         closed = false;
+        status = Atomic.make Connecting;
       }
     in
     let _ : unit Domain.t =
@@ -123,6 +132,7 @@ module Net = struct
                 let* conn =
                   Websocket_lwt_unix.connect ~random_string client uri
                 in
+                Atomic.set t.status Connected;
                 let rec recv_loop () =
                   let* frame = Websocket_lwt_unix.read conn in
                   match frame.Websocket.Frame.opcode with
@@ -146,13 +156,23 @@ module Net = struct
                     send_loop ()
                 in
                 Lwt.pick [ recv_loop (); send_loop () ])
-              (fun _exn -> Lwt.return_unit)
+              (fun exn ->
+                Atomic.set t.status (Error (Printexc.to_string exn));
+                Lwt.return_unit)
           in
-          Lwt_main.run main)
+          Lwt_main.run main;
+          (* A clean exit (server closed, or [close] was requested) leaves the
+             status at [Connecting]/[Connected]; only override when no error was
+             recorded. *)
+          match Atomic.get t.status with
+          | Error _ -> ()
+          | _ -> Atomic.set t.status Closed)
     in
     t
 
   let send t msg = push t.send_mutex t.send_q msg
   let poll t = drain t.recv_mutex t.recv
+  let status t = Atomic.get t.status
+  let is_connected t = Atomic.get t.status = Connected
   let close t = t.closed <- true
 end

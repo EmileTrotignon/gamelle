@@ -15,19 +15,36 @@ module Net = struct
   (* The browser WebSocket API is event-based: [onmessage] fires on the JS event
      loop between animation frames. We just buffer incoming text frames in a
      queue that [poll] drains; no Lwt or promises are involved. *)
-  type t = { ws : Brr_io.Websocket.t; recv : string Queue.t }
+  type status =
+    | Connecting
+    | Connected
+    | Closed
+    | Error of string
+
+  type t = {
+    ws : Brr_io.Websocket.t;
+    recv : string Queue.t;
+    mutable errored : bool;
+  }
 
   let connect url =
     let ws = Brr_io.Websocket.create (Jstr.of_string url) in
     let recv = Queue.create () in
+    let t = { ws; recv; errored = false } in
+    let target = Brr_io.Websocket.as_target ws in
     let _listener : Ev.listener =
       Ev.listen Brr_io.Message.Ev.message
         (fun ev ->
           let data : Jstr.t = Brr_io.Message.Ev.data (Ev.as_type ev) in
           Queue.add (Jstr.to_string data) recv)
-        (Brr_io.Websocket.as_target ws)
+        target
     in
-    { ws; recv }
+    (* The browser's [error] event carries no useful detail (for security
+       reasons), so we just record that something went wrong. *)
+    let _error_listener : Ev.listener =
+      Ev.listen Ev.error (fun _ev -> t.errored <- true) target
+    in
+    t
 
   let send t msg =
     (* [send] throws if the socket is not open yet, so drop until it is. *)
@@ -41,6 +58,17 @@ module Net = struct
     in
     drain []
 
+  let status t =
+    if t.errored then Error "websocket error"
+    else
+      let st = Brr_io.Websocket.ready_state t.ws in
+      let open Brr_io.Websocket.Ready_state in
+      if st = connecting then Connecting
+      else if st = open' then Connected
+      else Closed
+  (* closing or closed *)
+
+  let is_connected t = status t = Connected
   let close t = Brr_io.Websocket.close t.ws
 end
 
