@@ -51,6 +51,18 @@ let fast_frequency = 3
 
 let update ~io { offset; cursor; focused; pressed_key } text box =
   let width = max (Box.width box) 0. in
+  let cursor, focused =
+    if Event.is_up ~io `click_left then
+      if Box.mem (Event.mouse_pos ~io) box then
+        let x = (Event.mouse_pos ~io).x -. Box.x_left box +. offset in
+        (find_cursor_click ~io text x, true)
+      else (cursor, false)
+    else (cursor, focused)
+  in
+  (* Only the focused input reads the keyboard: with several text inputs on
+     screen, typing must not edit the unfocused ones. *)
+  if not focused then ({ offset; cursor; focused; pressed_key = None }, text)
+  else
   let pressed_key =
     match pressed_key with
     | Some (_, key) when Event.is_up ~io key -> None
@@ -71,14 +83,6 @@ let update ~io { offset; cursor; focused; pressed_key } text box =
     match char_down with
     | Some c -> Some (0, `input_char c)
     | None -> pressed_key
-  in
-  let cursor, focused =
-    if Event.is_up ~io `click_left then
-      if Box.mem (Event.mouse_pos ~io) box then
-        let x = (Event.mouse_pos ~io).x -. Box.x_left box +. offset in
-        (find_cursor_click ~io text x, true)
-      else (cursor, false)
-    else (cursor, focused)
   in
   let cursor =
     Int.max 0

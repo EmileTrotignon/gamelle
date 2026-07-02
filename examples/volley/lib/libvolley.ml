@@ -158,25 +158,40 @@ let step ~dt ~input1 ~input2 ({ ball; _ } as state) =
     let player2 = { player2 with shape = player2_shape } in
     { state with player1; player2; ball }
 
-(* The multiplayer wire protocol.
+(* The multiplayer wire protocol. The server hosts many independent games, each
+   identified by a random 5-digit code.
 
-   - Client -> server: each frame, the player's [input] with a monotonic [seq]
-     (so the server can acknowledge how far it has consumed, for client-side
-     prediction) and [for_frame], the latest server frame the client has seen
-     (so the server applies the input at the right moment via rollback, and can
-     measure round-trip time as [current_frame - for_frame]).
+   - Client -> server: first a [hello] — [Create] to open a new game or
+     [Join code] to enter an existing one. Then, each frame, the player's
+     [input] with a monotonic [seq] (so the server can acknowledge how far it
+     has consumed, for client-side prediction) and [for_frame], the latest
+     server frame the client has seen (so the server applies the input at the
+     right moment via rollback, and can measure round-trip time as
+     [current_frame - for_frame]).
    - Server -> client: a [to_client] message — first a [Welcome] telling the
-     client which player it controls, then a [State] every tick: the server
-     [frame], the [state] to render, and [ack], the last [seq] the server has
-     applied for (player 1, player 2). A client connecting while both player
-     slots are taken gets [Full] instead. *)
+     client which player it controls and the game's code (to display so a
+     friend can join), then a [State] every tick while both players are
+     present: the server [frame], the [state] to render, and [ack], the last
+     [seq] the server has applied for (player 1, player 2). While the game has
+     only one player the server sends [Waiting] each tick instead. Joining a
+     game that already has two players gets [Full]; joining a code that does
+     not exist gets [Unknown_game]. *)
+type hello = Create | Join of int [@@deriving yojson]
+
 type to_server = { seq : int; for_frame : int; input : player_input }
 [@@deriving yojson]
 
 type server_state = { frame : int; state : state; ack : int * int }
 [@@deriving yojson]
 
-type to_client = Welcome of int | State of server_state | Full
+type welcome = { player : int; code : int } [@@deriving yojson]
+
+type to_client =
+  | Welcome of welcome
+  | State of server_state
+  | Waiting
+  | Full
+  | Unknown_game
 [@@deriving yojson]
 
 (* Default server address ([host:port], no scheme) shown in the menu. Edit it on

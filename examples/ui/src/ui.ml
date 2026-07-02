@@ -4,6 +4,7 @@ type k = A | B | C
 
 type state = {
   text : string;
+  text2 : string;
   check1 : bool;
   check2 : bool;
   slider1 : float;
@@ -16,6 +17,7 @@ let two_checkboxes [%ui] l1 l2 = Ui.(checkbox [%ui] l1, checkbox [%ui] l2)
 let initial_state =
   {
     text = "hello";
+    text2 = "world";
     check1 = false;
     check2 = false;
     slider1 = 0.0;
@@ -23,7 +25,7 @@ let initial_state =
     rad = A;
   }
 
-let rec loop { text; check1; check2; slider1; slider2; rad } ~io =
+let rec loop { text; text2; check1; check2; slider1; slider2; rad } ~io =
   if Input.is_pressed ~io `escape then raise Exit;
   Window.show_cursor ~io true;
   let panel_size, state =
@@ -32,6 +34,7 @@ let rec loop { text; check1; check2; slider1; slider2; rad } ~io =
         Size.v (Size.width s *. 1.5) (Size.height s *. 1.))
     @@ fun [%ui] ->
     let text = text_input [%ui] text in
+    let text2 = text_input [%ui] text2 in
     text_area [%ui]
       "aaaa aaaa aaaa aaaa aaaa fffffffffffffffffffffffffffffff aaaa aaaa aaaa \
        bbb aaaa aaaa bbb aaaa aaaa bbb aaaa aaaa bbb";
@@ -104,7 +107,7 @@ let rec loop { text; check1; check2; slider1; slider2; rad } ~io =
     | B -> label [%ui] "B is selected"
     | C -> label [%ui] "C is selected"
     end;
-    { text; check1; check2; slider1; slider2; rad }
+    { text; text2; check1; check2; slider1; slider2; rad }
   in
   Window.set_size ~io panel_size;
   next_frame ~io;
