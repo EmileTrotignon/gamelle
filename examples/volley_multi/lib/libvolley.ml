@@ -139,7 +139,7 @@ let update_players ~dt ~gravity ~input1 ~input2
    their inputs and resolve collisions. This is the single source of truth for
    the game rules, shared by the singleplayer loop (run locally) and the
    multiplayer server (run on the host). *)
-let step ~dt ~input1 ~input2 ({ ball; _ } as state) =
+let step ~dt ~input1 ~input2 ({ ball; _ }1 as state) =
   if Vec.y (Physics.center ball) > 440.0 then
     if Vec.x (Physics.center ball) < 500.0 then
       { state with ball = init_ball (); points2 = state.points2 + 1 }

@@ -1490,7 +1490,8 @@ module Net : sig
   val connect : string -> t
   (** [connect url] opens a websocket connection to [url] (e.g.
       ["ws://localhost:8080"]). Connection happens in the background: wait for
-      {!val-status} to be [Connected] (poll it each frame) before calling {!send}.
+      {!val-status} to be [Connected] (poll it each frame) before calling
+      {!send}.
 
       Failures are also reported through [status]. *)
 
