@@ -69,35 +69,34 @@ type key =
   | `unknown_key ]
 [@@deriving yojson]
 
-module Strings = Set.Make (String)
+module Keys = struct
+  include Set.Make (struct
+    type t = key
 
-module Keys = Set.Make (struct
-  type t = key
+    let compare a b = Stdlib.compare a b
+  end)
 
-  let compare a b = Stdlib.compare a b
-end)
+  let to_yojson set = [%to_yojson: key list] (elements set)
+  let of_yojson json = Result.map of_list ([%of_yojson: key list] json)
+end
 
-(* Sets have no automatic deriver; serialize them through their element lists. *)
-let keys_to_yojson set = [%to_yojson: key list] (Keys.elements set)
-let keys_of_yojson json = Result.map Keys.of_list ([%of_yojson: key list] json)
-let strings_to_yojson set = [%to_yojson: string list] (Strings.elements set)
+module Strings = struct
+  include Set.Make (String)
 
-let strings_of_yojson json =
-  Result.map Strings.of_list ([%of_yojson: string list] json)
+  let to_yojson set = [%to_yojson: string list] (elements set)
+  let of_yojson json = Result.map of_list ([%of_yojson: string list] json)
+end
 
 type t = {
-  keyup : Keys.t; [@to_yojson keys_to_yojson] [@of_yojson keys_of_yojson]
-  keydown : Keys.t; [@to_yojson keys_to_yojson] [@of_yojson keys_of_yojson]
-  keypressed : Keys.t; [@to_yojson keys_to_yojson] [@of_yojson keys_of_yojson]
+  keyup : Keys.t;
+  keydown : Keys.t;
+  keypressed : Keys.t;
   mouse_x : float;
   mouse_y : float;
   wheel_delta : float;
   pressed_chars : Strings.t;
-      [@to_yojson strings_to_yojson] [@of_yojson strings_of_yojson]
   down_chars : Strings.t;
-      [@to_yojson strings_to_yojson] [@of_yojson strings_of_yojson]
   up_chars : Strings.t;
-      [@to_yojson strings_to_yojson] [@of_yojson strings_of_yojson]
   clock : int;
 }
 [@@deriving yojson]
