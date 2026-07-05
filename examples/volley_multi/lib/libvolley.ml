@@ -1,8 +1,8 @@
 open Gamelle_physics
 
-(* Same module as [Gamelle.Input_event], minus the io-reading helper — the
+(* Same module as [Gamelle.Event_snapshot], minus the io-reading helper — the
    simulation stays free of any backend so the server can link statically. *)
-module Input_event = Gamelle_common.Event_query
+module Event_snapshot = Gamelle_common.Event_snapshot
 
 type player = { shape : Physics.t; jumps : int; grounded : bool }
 [@@deriving yojson]
@@ -85,10 +85,10 @@ let block_player2 =
    [up] triggers a jump only on the frame it is pressed. *)
 let read_player_input event ~left ~right ~up ~down =
   {
-    left = Input_event.is_pressed event left;
-    right = Input_event.is_pressed event right;
-    down = Input_event.is_pressed event down;
-    jump = Input_event.is_down event up;
+    left = Event_snapshot.is_pressed event left;
+    right = Event_snapshot.is_pressed event right;
+    down = Event_snapshot.is_pressed event down;
+    jump = Event_snapshot.is_down event up;
   }
 
 let update_player ~dt ~gravity ~input:{ left; right; down; jump }

@@ -182,12 +182,14 @@ let record_input g slot ~seq ~for_frame input =
     | None -> g
     | Some seat ->
         with_seat g slot
-          (Some
-             {
-               seat with
-               last_seq = seq;
-               last_lag = max 0 (g.frame - for_frame);
-             })
+          begin
+            Some
+              {
+                seat with
+                last_seq = seq;
+                last_lag = max 0 (g.frame - for_frame);
+              }
+          end
   in
   let frames =
     Int_map.update f

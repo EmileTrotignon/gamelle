@@ -29,7 +29,7 @@ let rec singleplayer ~io state =
   let state =
     if Input.is_down ~io (`input_char "r") then initial_state
     else
-      let event = Gamelle.Input_event.of_io ~io in
+      let event = Gamelle.Event_snapshot.of_io ~io in
       let input1 =
         read_player_input event ~left:(`physical_char 'a')
           ~right:(`physical_char 'd') ~up:(`physical_char 'w')
@@ -101,7 +101,7 @@ let rec multiplayer ~io conn ~me ~code ~server_frame ~seq ~pending state =
       if Input.is_down ~io (`input_char "f") then
         Window.set_fullscreen ~io (not (Window.get_fullscreen ~io));
       if Input.is_pressed ~io `escape then raise Exit;
-      let event = Gamelle.Input_event.of_io ~io in
+      let event = Gamelle.Event_snapshot.of_io ~io in
       let input =
         read_player_input event ~left:(`physical_char 'a')
           ~right:(`physical_char 'd') ~up:(`physical_char 'w')

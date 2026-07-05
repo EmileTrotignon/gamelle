@@ -1025,7 +1025,7 @@ module Input : sig
   (** [wheel_delta ~io] returns the amount of change of the mouse wheel. *)
 end
 
-module Input_event : sig
+module Event_snapshot : sig
   (** Query a deserialized input event.
 
       This mirrors {!Input}, but reads from an explicit, serializable event
@@ -1037,11 +1037,11 @@ module Input_event : sig
       Unlike {!Input}, there is no view transform or clipping applied here, so
       {!mouse_pos} returns the raw coordinates carried by the event. *)
 
-  type t = Gamelle_common.Event_query.t
+  type t = Gamelle_common.Event_snapshot.t
   (** A serializable snapshot of player inputs (mouse and keyboard). Equal to
-      the backend-free [Gamelle_common.Event_query.t], so simulation code built
-      on [gamelle.physics]/[gamelle.common] alone (e.g. shared with a headless
-      server) can consume events captured here with {!of_io}. *)
+      the backend-free [Gamelle_common.Event_snapshot.t], so simulation code
+      built on [gamelle.physics]/[gamelle.common] alone (e.g. shared with a
+      headless server) can consume events captured here with {!of_io}. *)
 
   val of_io : io:io -> t
   (** [of_io ~io] captures the current input event from [io]. *)

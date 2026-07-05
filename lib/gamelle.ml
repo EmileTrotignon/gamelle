@@ -9,8 +9,8 @@ module View = View
 module Transform = Gamelle_common.Transform
 module Input = Event
 
-module Input_event = struct
-  include Gamelle_common.Event_query
+module Event_snapshot = struct
+  include Gamelle_common.Event_snapshot
 
   let of_io ~(io : Gamelle_backend.io) = !(io.Gamelle_common.event)
 end

@@ -1,14 +1,6 @@
 (executable
  (name main)
  (public_name volley-server)
- ; This used to be statically linked (-ccopt -static) so the binary could be
- ; scp'd to any Linux VPS regardless of its libc. That stopped working when
- ; tls-lwt entered the switch: conduit-lwt-unix bakes its TLS backend in at
- ; package-build time, so the server now transitively links zarith/libgmp, and
- ; Arch ships no libgmp.a. Dynamic is fine as long as the VPS's glibc is not
- ; older than the build machine's (Arch VPS vs Manjaro builder: ok) and it has
- ; libgmp.so — the server itself still only speaks plain ws behind the TLS
- ; proxy.
  (libraries
   libvolley
   websocket-lwt-unix
