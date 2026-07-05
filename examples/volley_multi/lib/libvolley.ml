@@ -163,7 +163,7 @@ let step ~dt ~input1 ~input2 ({ ball; _ } as state) =
     { state with player1; player2; ball }
 
 (* The multiplayer wire protocol. The server hosts many independent games, each
-   identified by a random 5-digit code.
+   identified by a random 4-digit code.
 
    - Client -> server: first a [hello] — [Create] to open a new game or
      [Join code] to enter an existing one. Then, each frame, the player's

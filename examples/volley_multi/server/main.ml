@@ -3,7 +3,7 @@ open Libvolley
 
 (* Authoritative volley server with rollback, hosting many games at once.
 
-   Each game is identified by a random 5-digit code. A client's first message
+   Each game is identified by a random 4-digit code. A client's first message
    picks a game: [Create] opens a fresh one (the client becomes player 1 and is
    told the code to share), [Join code] takes the remaining slot of an existing
    one. A full game answers [Full]; an unknown code answers [Unknown_game].
@@ -162,7 +162,7 @@ let to_client_msg m = Yojson.Safe.to_string (to_client_to_yojson m)
 
 let fresh_code () =
   let rec go () =
-    let code = 10_000 + Random.int 90_000 in
+    let code = 1_000 + Random.int 9_000 in
     if Hashtbl.mem games code then go () else code
   in
   go ()
@@ -210,11 +210,11 @@ let handle_frame g slot (ws_frame : Websocket.Frame.t) =
       | Ok { seq; for_frame; input } ->
           record_input g slot ~seq ~for_frame input
       | Error e ->
-          log "game %05d: player %d: ignoring bad input json (%s)" g.code
+          log "game %04d: player %d: ignoring bad input json (%s)" g.code
             (player_number slot) e;
           g
       | exception exn ->
-          log "game %05d: player %d: ignoring unparseable input (%s)" g.code
+          log "game %04d: player %d: ignoring unparseable input (%s)" g.code
             (player_number slot) (Printexc.to_string exn);
           g)
   | _ -> g
@@ -229,7 +229,7 @@ let ms_of_frames f = int_of_float (Float.round (float_of_int f *. dt *. 1000.0))
 let tick_game g =
   if is_full g then begin
     if not g.running then
-      log "game %05d: both players connected, simulation running" g.code;
+      log "game %04d: both players connected, simulation running" g.code;
     let start =
       match g.dirty_from with Some f -> min f g.frame | None -> g.frame
     in
@@ -273,7 +273,7 @@ let tick_game g =
     (* One log line per point scored, carrying the current pings so lag stays
        observable without flooding the log. *)
     if points <> g.last_points then
-      log "game %05d: score %d - %d (ping %dms / %dms)" g.code (fst points)
+      log "game %04d: score %d - %d (ping %dms / %dms)" g.code (fst points)
         (snd points)
         (ms_of_frames (lag P1))
         (ms_of_frames (lag P2));
@@ -306,7 +306,7 @@ let tick_game g =
   end
   else begin
     if g.running then
-      log "game %05d: a player left, simulation paused and reset" g.code;
+      log "game %04d: a player left, simulation paused and reset" g.code;
     let g = if g.running then reset_sim g else g in
     (g, to_client_msg Waiting)
   end
@@ -343,18 +343,18 @@ let attach client ~id ~code slot =
   update_game code (fun g ->
       with_seat g slot
         (Some { conn = client; conn_id = id; last_seq = 0; last_lag = 0 }));
-  log "player %d joined game %05d (connection #%d)" (player_number slot) code id;
+  log "player %d joined game %04d (connection #%d)" (player_number slot) code id;
   let* () =
     send_to client
       (to_client_msg (Welcome { player = player_number slot; code }))
   in
   let release () =
     update_game code (fun g -> with_seat g slot None);
-    log "player %d left game %05d (connection #%d)" (player_number slot) code id;
+    log "player %d left game %04d (connection #%d)" (player_number slot) code id;
     match Hashtbl.find_opt games code with
     | Some g when is_empty g ->
         Hashtbl.remove games code;
-        log "game %05d closed" code
+        log "game %04d closed" code
     | Some _ | None -> ()
   in
   let apply ws_frame g =
@@ -400,17 +400,17 @@ let handler client =
       | Some Create ->
           let code = fresh_code () in
           Hashtbl.replace games code (new_game code);
-          log "game %05d created (connection #%d)" code id;
+          log "game %04d created (connection #%d)" code id;
           attach client ~id ~code P1
       | Some (Join code) -> (
           match Hashtbl.find_opt games code with
           | None ->
-              log "connection #%d refused: no game %05d" id code;
+              log "connection #%d refused: no game %04d" id code;
               refuse client Unknown_game
           | Some g -> (
               match free_slot g with
               | None ->
-                  log "connection #%d refused: game %05d is full" id code;
+                  log "connection #%d refused: game %04d is full" id code;
                   refuse client Full
               | Some slot -> attach client ~id ~code slot))
       | None ->

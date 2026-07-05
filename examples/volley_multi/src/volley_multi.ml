@@ -183,7 +183,7 @@ let rec multiplayer ~io conn ~me ~code ~server_frame ~seq ~pending
             | _ -> state
           in
           draw_state ~io:render_io render_state;
-          let status = Printf.sprintf "Game %05d — you are player %d" code me in
+          let status = Printf.sprintf "Game %04d — you are player %d" code me in
           Text.draw ~io ~size:30 ~color:Color.white ~at:(Point.v 300.0 20.0)
             status;
           next_frame ~io;
@@ -194,7 +194,7 @@ let rec multiplayer ~io conn ~me ~code ~server_frame ~seq ~pending
    (host:port) used for multiplayer and [code] the editable game code to join;
    both are threaded through frames so the text inputs keep their content. For
    multiplayer you either create a game (you get a code to share) or join an
-   existing one by typing its 5-digit code. [error] is shown under the join
+   existing one by typing its 4-digit code. [error] is shown under the join
    button: clicking "Join game" with a code that is not a number must complain
    rather than silently do nothing. *)
 let rec menu ~io address code error =
@@ -230,8 +230,8 @@ let rec menu ~io address code error =
                         code,
                         Some
                           (Printf.sprintf
-                             "%S is not a game code: expected the 5 digits \
-                              shown on the creator's screen, e.g. 83293"
+                             "%S is not a game code: expected the 4 digits \
+                              shown on the creator's screen, e.g. 8329"
                              code) )
               else `NoChoice (address, code, error)
             end
@@ -360,7 +360,7 @@ let rec lobby ~io conn ~me ~code =
           | Some code ->
               Text.draw ~io ~size:40 ~color:Color.white
                 ~at:(Point.v 330.0 340.0)
-                (Printf.sprintf "Game code: %05d" code);
+                (Printf.sprintf "Game code: %04d" code);
               Text.draw ~io ~size:30 ~color:Color.white
                 ~at:(Point.v 300.0 400.0)
                 ("Waiting for another player" ^ dots));
