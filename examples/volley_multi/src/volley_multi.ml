@@ -215,9 +215,7 @@ let rec menu ~io address code error =
               Ui.label [%ui] "Game code:";
               let code = Ui.text_input [%ui] code in
               let clicked = Ui.button [%ui] "Join game" in
-              (match error with
-              | Some e -> Ui.text_area [%ui] e
-              | None -> ());
+              (match error with Some e -> Ui.text_area [%ui] e | None -> ());
               if clicked then
                 match int_of_string_opt (String.trim code) with
                 | Some c -> `Multi (address, code, Join c)
@@ -340,7 +338,8 @@ let rec lobby ~io conn ~me ~code =
   in
   match polled with
   | Rejected msg -> `Lost msg
-  | In_lobby { me; code = Some code; first_state = Some s } -> `Play (me, code, s)
+  | In_lobby { me; code = Some code; first_state = Some s } ->
+      `Play (me, code, s)
   | In_lobby { me; code; first_state = _ } -> (
       match Net.status conn with
       | Net.Error msg -> `Lost msg
