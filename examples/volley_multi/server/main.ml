@@ -75,9 +75,6 @@ let next_id = ref 0
 let log fmt = Printf.printf ("[server] " ^^ fmt ^^ "\n%!")
 let to_client_msg m = Yojson.Safe.to_string (to_client_to_yojson m)
 
-let string_of_input { left; right; down; jump } =
-  Printf.sprintf "left=%b right=%b down=%b jump=%b" left right down jump
-
 let new_game () =
   let rec fresh_code () =
     let code = 10_000 + Random.int 90_000 in
@@ -141,8 +138,7 @@ let mark_dirty g f =
   g.dirty_from <- Some (match g.dirty_from with None -> f | Some d -> min d f)
 
 (* Record [input] for [slot] at the frame the client was reacting to, then mark
-   the simulation for replay from there. Logs ping (round-trip in ms) and input
-   changes; held input is resent every frame so we only log it when it changes. *)
+   the simulation for replay from there. *)
 let record_input g slot ~seq ~for_frame input =
   g.last_seq.(slot) <- seq;
   g.last_lag.(slot) <- max 0 (g.frame - for_frame);
@@ -155,11 +151,6 @@ let record_input g slot ~seq ~for_frame input =
      carry-forward in [tick] clears jump on the next frame, so a press still fires
      exactly once. *)
   let merged = { input with jump = input.jump || prev.jump } in
-  if input.jump && not prev.jump then
-    log "game %05d: player %d jump @%d" g.code (slot + 1) f
-  else if { input with jump = false } <> { prev with jump = false } then
-    log "game %05d: player %d input @%d: %s" g.code (slot + 1) f
-      (string_of_input merged);
   g.inp.(f mod n).(slot) <- merged;
   mark_dirty g f
 
@@ -167,7 +158,8 @@ let handle_frame g slot (ws_frame : Websocket.Frame.t) =
   match ws_frame.opcode with
   | Websocket.Frame.Opcode.Text | Websocket.Frame.Opcode.Binary -> (
       match to_server_of_yojson (Yojson.Safe.from_string ws_frame.content) with
-      | Ok { seq; for_frame; input } -> record_input g slot ~seq ~for_frame input
+      | Ok { seq; for_frame; input } ->
+          record_input g slot ~seq ~for_frame input
       | Error e ->
           log "game %05d: player %d: ignoring bad input json (%s)" g.code
             (slot + 1) e
@@ -179,7 +171,8 @@ let handle_frame g slot (ws_frame : Websocket.Frame.t) =
 let close_client client =
   Lwt.catch
     (fun () ->
-      Websocket_lwt_unix.Connected_client.send client (Websocket.Frame.close 1000))
+      Websocket_lwt_unix.Connected_client.send client
+        (Websocket.Frame.close 1000))
     (fun _ -> Lwt.return_unit)
 
 (* Refuse a connection: send [msg] (e.g. [Full]) and close politely. *)
@@ -194,7 +187,8 @@ let attach client ~id g slot =
   g.players.(slot) <- Some client;
   log "player %d joined game %05d (connection #%d)" (slot + 1) g.code id;
   let* () =
-    send_to client (to_client_msg (Welcome { player = slot + 1; code = g.code }))
+    send_to client
+      (to_client_msg (Welcome { player = slot + 1; code = g.code }))
   in
   let release () =
     g.players.(slot) <- None;
@@ -289,20 +283,23 @@ let tick_game g =
     g.inp.(cur).(1) <- { (g.inp.(prev).(1)) with jump = false };
     let s = g.snap.(g.frame mod n) in
     let pts = (s.points1, s.points2) in
+    (* One log line per point scored, carrying the current pings so lag stays
+       observable without flooding the log. *)
     if pts <> g.last_points then begin
       g.last_points <- pts;
-      log "game %05d: score: player 1 = %d, player 2 = %d" g.code (fst pts)
+      log "game %05d: score %d - %d (ping %dms / %dms)" g.code (fst pts)
         (snd pts)
-    end;
-    (* Ping report once a second. *)
-    if g.frame mod 60 = 0 then
-      log "game %05d: ping: player 1 = %dms, player 2 = %dms" g.code
         (ms_of_frames g.last_lag.(0))
-        (ms_of_frames g.last_lag.(1));
+        (ms_of_frames g.last_lag.(1))
+    end;
     let msg =
       to_client_msg
         (State
-           { frame = g.frame; state = s; ack = (g.last_seq.(0), g.last_seq.(1)) })
+           {
+             frame = g.frame;
+             state = s;
+             ack = (g.last_seq.(0), g.last_seq.(1));
+           })
     in
     (* Don't block the tick on the network; apply the outbound artificial delay. *)
     with_lag (fun () -> broadcast g msg)

@@ -38,8 +38,8 @@ jobs:
       - name: Install dependencies
         run: opam install . --deps-only --with-doc
 
-      - name: Build documentation
-        run: opam exec -- dune build @doc
+      - name: Build documentation (including the playable examples)
+        run: opam exec -- dune build site --profile=release
 
       - name: Set-up Pages
         uses: actions/configure-pages@v4
@@ -47,7 +47,7 @@ jobs:
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
         with:
-          path: _build/default/_doc/_html
+          path: _build/default/site
 
       - name: Deploy odoc to GitHub Pages
         id: deployment

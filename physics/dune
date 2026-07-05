@@ -1,0 +1,6 @@
+(library
+ (public_name gamelle.physics)
+ (name gamelle_physics)
+ (libraries gamelle_common yojson ppx_deriving_yojson.runtime)
+ (preprocess
+  (pps ppx_deriving_yojson)))

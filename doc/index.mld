@@ -1,0 +1,58 @@
+{0 Gamelle}
+
+Gamelle is a tiny 2D game engine. It provides:
+
+- Hot code reload on every file change for a quick feedback loop
+- Export to a single HTML file to share your game online
+- Automatic assets loading for images, sounds and fonts
+- Immediate mode GUI to quickly put together menus and widgets
+- Collisions detection and rigid physics
+
+{1 API}
+
+- {!module-Gamelle} — the game engine: main loop, drawing, inputs, UI,
+  physics, networking.
+- {!module-Gamelle_physics} — the backend-free core (geometry and rigid-body
+  physics), for headless programs such as game servers.
+
+{1 Examples}
+
+Playable in the browser, compiled with [js_of_ocaml]; the source code lives in
+the {{:https://github.com/art-w/gamelle/tree/master/examples}[examples/]}
+directory of the repository.
+
+- {{:../examples/volley.html}Volley} — volleyball with rigid physics, two
+  players on one keyboard
+- {{:../examples/volley_multi.html}Volley multi} — the same game with menus
+  and online multiplayer: create or join a game by its 5-digit code (requires
+  a running volley-server)
+- {{:../examples/pong.html}Pong}
+- {{:../examples/snake.html}Snake}
+- {{:../examples/morpion.html}Morpion} — tic-tac-toe
+- {{:../examples/trigonometry_sprint.html}Trigonometry sprint}
+- {{:../examples/sound.html}Sound} — sound and music playback
+- {{:../examples/ui.html}Ui} — tour of the immediate mode GUI widgets
+- {{:../examples/routine.html}Routine} — time-based animation combinators
+
+
+{1 Getting started}
+
+You can create a new game project with:
+
+{@shell[
+  $ gamelle init mygame
+  $ cd mygame
+  $ make
+]}
+
+The [make] command starts the game in development mode: editing
+[src/mygame.ml] will automatically reload your game on every change. Game
+assets added to the folder [assets/] are automatically available through the
+dynamic [Assets] module.
+
+To export your game as a single HTML file, compiled with [js_of_ocaml] and
+including all game assets:
+
+{@shell[
+  $ make html
+]}

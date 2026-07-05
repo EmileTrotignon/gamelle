@@ -28,3 +28,18 @@
   === trigonometry_sprint ===
   === ui ===
   === volley ===
+  === volley_multi ===
+  EXTRA: lib/dune
+  EXTRA: lib/libvolley.ml
+  EXTRA: server/dune
+  EXTRA: server/main.ml
+  --- template/src/dune
+  +++ example/src/dune
+  @@ -1,6 +1,6 @@
+   (library
+    (name volley_multi)
+  - (libraries gamelle)
+  + (libraries gamelle libvolley)
+    (preprocess
+     (pps gamelle.ppx_ui)))
+   

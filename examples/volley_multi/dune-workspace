@@ -1,0 +1,6 @@
+(lang dune 3.15)
+(env
+ (_
+  (js_of_ocaml
+   (flags (:standard --effects=double-translation))
+   (build_runtime_flags (:standard --effects=double-translation)))))

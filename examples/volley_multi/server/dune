@@ -1,0 +1,18 @@
+(executable
+ (name main)
+ (public_name volley-server)
+ ; Statically linked so the binary can be scp'd to any Linux VPS regardless of
+ ; its libc. Possible because [libvolley] only depends on the backend-free
+ ; [gamelle.physics], keeping GL/X11 out of the link. Glibc caveat: a static
+ ; [getaddrinfo] still wants the NSS shared libs at runtime, but the server
+ ; only ever binds a port, so it never resolves a hostname.
+ (link_flags
+  (:standard -ccopt -static))
+ (libraries
+  libvolley
+  websocket-lwt-unix
+  conduit-lwt-unix
+  lwt
+  lwt.unix
+  unix
+  yojson))

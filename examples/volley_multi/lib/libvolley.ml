@@ -1,4 +1,8 @@
-open Gamelle
+open Gamelle_physics
+
+(* Same module as [Gamelle.Input_event], minus the io-reading helper — the
+   simulation stays free of any backend so the server can link statically. *)
+module Input_event = Gamelle_common.Event_query
 
 type player = { shape : Physics.t; jumps : int; grounded : bool }
 [@@deriving yojson]
@@ -196,4 +200,4 @@ type to_client =
 
 (* Default server address ([host:port], no scheme) shown in the menu. Edit it on
    a client to point at the machine running the server, e.g. its LAN IP. *)
-let default_server_address = "192.168.1.8:8080"
+let default_server_address = "51.38.226.214:8080"

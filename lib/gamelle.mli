@@ -137,7 +137,7 @@ module Color : sig
   (** [of_yojson json] deserializes a color from JSON. *)
 end
 
-type xy = { x : float; y : float }
+type xy = Gamelle_common.Geometry.Xy.t = { x : float; y : float }
 (** The type of points and vectors: [x] and [y] coordinates. *)
 
 module Point : sig
@@ -314,7 +314,7 @@ end
 module Segment : sig
   (** Segments connecting two {!Point}s. *)
 
-  type t
+  type t = Gamelle_common.Geometry.Segment.t
   (** The type of segments. *)
 
   val v : Point.t -> Point.t -> t
@@ -361,7 +361,7 @@ end
 module Box : sig
   (** Axis-aligned bounding boxes. *)
 
-  type t
+  type t = Gamelle_common.Geometry.Box.t
   (** The type of axis-aligned bounding boxes (rectangles without a rotation).
   *)
 
@@ -492,7 +492,7 @@ end
 module Circle : sig
   (** Circles. *)
 
-  type t
+  type t = Gamelle_common.Geometry.Circle.t
   (** The type of circles. *)
 
   val v : Point.t -> float -> t
@@ -615,7 +615,7 @@ end
 module Polygon : sig
   (** Polygons. *)
 
-  type t
+  type t = Gamelle_common.Geometry.Polygon.t
   (** The type of polygons. *)
 
   val v : Point.t list -> t
@@ -658,7 +658,7 @@ end
 module Shape : sig
   (** Arbitrary shapes: segments, circles and polygons. *)
 
-  type t
+  type t = Gamelle_common.Geometry.Shape.t
   (** The type of shapes: segments, circles, polygons. *)
 
   val segment : Segment.t -> t
@@ -1040,8 +1040,11 @@ module Input_event : sig
       Unlike {!Input}, there is no view transform or clipping applied here, so
       {!mouse_pos} returns the raw coordinates carried by the event. *)
 
-  type t
-  (** A serializable snapshot of player inputs (mouse and keyboard). *)
+  type t = Gamelle_common.Event_query.t
+  (** A serializable snapshot of player inputs (mouse and keyboard). Equal to
+      the backend-free [Gamelle_common.Event_query.t], so simulation code built
+      on [gamelle.physics]/[gamelle.common] alone (e.g. shared with a headless
+      server) can consume events captured here with {!of_io}. *)
 
   val of_io : io:io -> t
   (** [of_io ~io] captures the current input event from [io]. *)
@@ -1697,8 +1700,11 @@ end
 module Physics : sig
   (** Rigid physics for {!Shape} objects. *)
 
-  type t
-  (** The type of rigid bodies. *)
+  type t = Gamelle_physics.Physics.t
+  (** The type of rigid bodies. Equal to the backend-free
+      [Gamelle_physics.Physics.t], so simulation code can live in a library that
+      depends only on [gamelle.physics] (e.g. shared with a headless server) and
+      still interoperate with rendering code using this module. *)
 
   val to_yojson : t -> Yojson.Safe.t
   (** [to_yojson t] serializes the rigid body [t] to JSON. Useful for sending
