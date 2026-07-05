@@ -72,6 +72,10 @@
    (>= 4.0.0))
   (conduit-lwt-unix
    (>= 7.0.0))
+  ; conduit-lwt-unix only speaks wss when a TLS backend is installed alongside
+  ; it (it is a depopt of conduit); tls-lwt is the pure-OCaml one.
+  (tls-lwt
+   (>= 1.0.0))
   (websocket-lwt-unix
    (>= 2.17))))
 
@@ -82,5 +86,5 @@
 (package
  (name gamelle-all)
  (synopsis "Gamelle with all optional deps")
- (depends gamelle raylib ctypes ctypes-foreign inotify tsdl tsdl-image tsdl-mixer tsdl-ttf conf-sdl2-gfx lwt uri conduit-lwt-unix websocket-lwt-unix)
+ (depends gamelle raylib ctypes ctypes-foreign inotify tsdl tsdl-image tsdl-mixer tsdl-ttf conf-sdl2-gfx lwt uri conduit-lwt-unix tls-lwt websocket-lwt-unix)
  (allow_empty))

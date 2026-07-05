@@ -189,8 +189,10 @@ let rec multiplayer ~io conn ~me ~code ~server_frame ~seq ~pending state =
    (host:port) used for multiplayer and [code] the editable game code to join;
    both are threaded through frames so the text inputs keep their content. For
    multiplayer you either create a game (you get a code to share) or join an
-   existing one by typing its 5-digit code. *)
-let rec menu ~io address code =
+   existing one by typing its 5-digit code. [error] is shown under the join
+   button: clicking "Join game" with a code that is not a number must complain
+   rather than silently do nothing. *)
+let rec menu ~io address code error =
   Box.fill ~io ~color:Color.black (Window.box ~io);
   Text.draw ~io ~size:60 ~color:Color.white ~at:(Point.v 360.0 200.0) "Volley";
   if Input.is_down ~io (`input_char "f") then
@@ -212,23 +214,32 @@ let rec menu ~io address code =
             else begin
               Ui.label [%ui] "Game code:";
               let code = Ui.text_input [%ui] code in
-              let join =
-                if Ui.button [%ui] "Join game" then
-                  int_of_string_opt (String.trim code)
-                else None
-              in
-              match join with
-              | Some c -> `Multi (address, code, Join c)
-              | None -> `NoChoice (address, code)
+              let clicked = Ui.button [%ui] "Join game" in
+              (match error with
+              | Some e -> Ui.text_area [%ui] e
+              | None -> ());
+              if clicked then
+                match int_of_string_opt (String.trim code) with
+                | Some c -> `Multi (address, code, Join c)
+                | None ->
+                    `NoChoice
+                      ( address,
+                        code,
+                        Some
+                          (Printf.sprintf
+                             "%S is not a game code: expected the 5 digits \
+                              shown on the creator's screen, e.g. 83293"
+                             code) )
+              else `NoChoice (address, code, error)
             end
           end
           end
       end
   in
   match choice with
-  | `NoChoice (address, code) ->
+  | `NoChoice (address, code, error) ->
       next_frame ~io;
-      menu ~io address code
+      menu ~io address code error
   | (`Single | `Multi _) as c -> c
 
 (* Shared backdrop + title for the connection screens, matching the menu. *)
@@ -262,7 +273,9 @@ let rec error_screen ~io msg =
     snd
       begin
         Ui.window ~io ~at:(Point.v 360.0 420.0) begin fun [%ui] ->
-            Ui.text_area [%ui] "Connection failed";
+            (* No fixed "Connection failed" heading: the server also lands us
+               here with rejections ([Unknown_game], [Full]) where the
+               connection itself worked fine; [msg] alone tells the truth. *)
             Ui.text_area [%ui] msg;
             if Ui.button [%ui] "Retry" then Some `Retry
             else if Ui.button [%ui] "Back to menu" then Some `Menu
@@ -295,39 +308,44 @@ type lobby_polled =
   | Rejected of string
 
 let rec lobby ~io conn ~me ~code =
-  match Net.status conn with
-  | Net.Error msg -> `Lost msg
-  | Net.Closed -> `Lost "the connection was closed"
-  | Net.Connecting | Net.Connected -> (
-      draw_backdrop ~io;
-      if Input.is_pressed ~io `escape then raise Exit;
-      let polled =
-        List.fold_left
-          begin fun acc msg ->
-            match to_client_of_yojson (Yojson.Safe.from_string msg) with
-            | Error _ | (exception _) ->
-                Rejected "received an unreadable message from the server"
-            | Ok m ->
-                begin match (acc, m) with
-                | Rejected _, _ -> acc
-                | In_lobby l, Welcome w ->
-                    In_lobby { l with me = w.player; code = Some w.code }
-                | In_lobby l, State s ->
-                    In_lobby { l with first_state = Some s }
-                | In_lobby _, Waiting -> acc
-                | In_lobby _, Full -> Rejected "this game is already full"
-                | In_lobby _, Unknown_game ->
-                    Rejected "there is no game with this code"
-                end
-          end
-          (In_lobby { me; code; first_state = None })
-          (Net.poll conn)
-      in
-      match polled with
-      | Rejected msg -> `Lost msg
-      | In_lobby { me; code = Some code; first_state = Some s } ->
-          `Play (me, code, s)
-      | In_lobby { me; code; first_state = _ } ->
+  draw_backdrop ~io;
+  if Input.is_pressed ~io `escape then raise Exit;
+  (* Drain the queue *before* looking at the connection status: the server
+     closes the socket right after a [Full]/[Unknown_game] rejection, so by the
+     time we run the status may already be [Closed] — the queued rejection is
+     the explicit reason and must win over a generic "connection was closed". *)
+  let polled =
+    List.fold_left
+      begin fun acc msg ->
+        match to_client_of_yojson (Yojson.Safe.from_string msg) with
+        | Error _ | (exception _) ->
+            Rejected "received an unreadable message from the server"
+        | Ok m ->
+            begin match (acc, m) with
+            | Rejected _, _ -> acc
+            | In_lobby l, Welcome w ->
+                In_lobby { l with me = w.player; code = Some w.code }
+            | In_lobby l, State s -> In_lobby { l with first_state = Some s }
+            | In_lobby _, Waiting -> acc
+            | In_lobby _, Full -> Rejected "this game is already full"
+            | In_lobby _, Unknown_game ->
+                Rejected
+                  "there is no game with this code: check for a typo, or ask \
+                   the creator whether they left (a game whose players all \
+                   leave is deleted)"
+            end
+      end
+      (In_lobby { me; code; first_state = None })
+      (Net.poll conn)
+  in
+  match polled with
+  | Rejected msg -> `Lost msg
+  | In_lobby { me; code = Some code; first_state = Some s } -> `Play (me, code, s)
+  | In_lobby { me; code; first_state = _ } -> (
+      match Net.status conn with
+      | Net.Error msg -> `Lost msg
+      | Net.Closed -> `Lost "the connection was closed"
+      | Net.Connecting | Net.Connected ->
           let dots =
             String.make (1 + (int_of_float (clock ~io *. 2.0) mod 3)) '.'
           in
@@ -351,7 +369,17 @@ let rec lobby ~io conn ~me ~code =
    mid-game we fall back to the lobby and wait for a new one. Returns once the
    player asks to go back to the menu. *)
 let rec play_multiplayer ~io ~address ~hello : [ `Menu ] =
-  let conn = Net.connect ("ws://" ^ address) in
+  (* A bare host:port means plain ws; an explicit scheme (ws:// or wss://) is
+     kept as-is so the same menu works from an https page, where only wss is
+     allowed. *)
+  let url =
+    if
+      String.starts_with ~prefix:"ws://" address
+      || String.starts_with ~prefix:"wss://" address
+    then address
+    else "ws://" ^ address
+  in
+  let conn = Net.connect url in
   let on_failure msg =
     Net.close conn;
     match error_screen ~io msg with
@@ -376,7 +404,7 @@ let rec play_multiplayer ~io ~address ~hello : [ `Menu ] =
       session ~me:0 ~code:None
 
 let rec app ~io address code =
-  match menu ~io address code with
+  match menu ~io address code None with
   | `Single -> singleplayer ~io initial_state
   | `Multi (address, code, hello) -> (
       match play_multiplayer ~io ~address ~hello with

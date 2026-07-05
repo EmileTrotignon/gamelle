@@ -139,7 +139,7 @@ let update_players ~dt ~gravity ~input1 ~input2
    their inputs and resolve collisions. This is the single source of truth for
    the game rules, shared by the singleplayer loop (run locally) and the
    multiplayer server (run on the host). *)
-let step ~dt ~input1 ~input2 ({ ball; _ }1 as state) =
+let step ~dt ~input1 ~input2 ({ ball; _ } as state) =
   if Vec.y (Physics.center ball) > 440.0 then
     if Vec.x (Physics.center ball) < 500.0 then
       { state with ball = init_ball (); points2 = state.points2 + 1 }
@@ -198,6 +198,7 @@ type to_client =
   | Unknown_game
 [@@deriving yojson]
 
-(* Default server address ([host:port], no scheme) shown in the menu. Edit it on
-   a client to point at the machine running the server, e.g. its LAN IP. *)
-let default_server_address = "51.38.226.214:8080"
+(* Default server address shown in the menu. A bare [host:port] connects with
+   ws://; give a full URL (wss://…) to use TLS, which browsers require when the
+   page itself is served over https (e.g. GitHub Pages). *)
+let default_server_address = "wss://ssh.etrotignon.xyz:8443"

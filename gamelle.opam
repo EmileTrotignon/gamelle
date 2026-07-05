@@ -38,6 +38,7 @@ depopts: [
   "lwt" {>= "5.9.0"}
   "uri" {>= "4.0.0"}
   "conduit-lwt-unix" {>= "7.0.0"}
+  "tls-lwt" {>= "1.0.0"}
   "websocket-lwt-unix" {>= "2.17"}
 ]
 build: [

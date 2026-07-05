@@ -22,6 +22,7 @@ depends: [
   "lwt"
   "uri"
   "conduit-lwt-unix"
+  "tls-lwt"
   "websocket-lwt-unix"
   "odoc" {with-doc}
 ]

@@ -156,8 +156,10 @@ let record_input g slot ~seq ~for_frame input =
 
 let handle_frame g slot (ws_frame : Websocket.Frame.t) =
   match ws_frame.opcode with
-  | Websocket.Frame.Opcode.Text | Websocket.Frame.Opcode.Binary -> (
-      match to_server_of_yojson (Yojson.Safe.from_string ws_frame.content) with
+  | Websocket.Frame.Opcode.Text | Websocket.Frame.Opcode.Binary ->
+      begin match
+        to_server_of_yojson (Yojson.Safe.from_string ws_frame.content)
+      with
       | Ok { seq; for_frame; input } ->
           record_input g slot ~seq ~for_frame input
       | Error e ->
@@ -165,7 +167,8 @@ let handle_frame g slot (ws_frame : Websocket.Frame.t) =
             (slot + 1) e
       | exception exn ->
           log "game %05d: player %d: ignoring unparseable input (%s)" g.code
-            (slot + 1) (Printexc.to_string exn))
+            (slot + 1) (Printexc.to_string exn)
+      end
   | _ -> ()
 
 let close_client client =
@@ -228,7 +231,7 @@ let handler client =
   let id = !next_id in
   incr next_id;
   Lwt.catch
-    (fun () ->
+    begin fun () ->
       (* The first message must be a [hello] choosing which game to enter. *)
       let* first = Websocket_lwt_unix.Connected_client.recv client in
       match parse_hello first with
@@ -249,7 +252,8 @@ let handler client =
               | Some slot -> attach client ~id g slot))
       | None ->
           log "connection #%d: bad hello, closing" id;
-          close_client client)
+          close_client client
+    end
     (fun _ -> Lwt.return_unit)
 
 let ms_of_frames f = int_of_float (Float.round (float_of_int f *. dt *. 1000.0))
