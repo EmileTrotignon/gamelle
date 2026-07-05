@@ -14,7 +14,8 @@
   sound
   window
   state
-  replay)
+  replay
+  net)
  (libraries
   gamelle_common
   uuseg

@@ -71,6 +71,15 @@ let predict_step ~block paddle input =
   in
   { paddle with shape }
 
+(* Result of draining one frame's worth of server messages in [multiplayer].
+   Constructors are listed from healthy to fatal; a more severe outcome wins
+   over a less severe one no matter where its message appears in the batch. *)
+type polled =
+  | Playing of { server_frame : int; state : state; ack : (int * int) option }
+  | Waiting_for_opponent
+  | Game_full
+  | Garbled
+
 (* Multiplayer client. [server_frame] is the latest server frame seen (tags our
    outgoing inputs and drives the server's lag compensation), [seq] our input
    counter, [pending] the inputs we have sent but the server has not acked yet
@@ -84,7 +93,10 @@ let rec multiplayer ~io conn ~me ~code ~server_frame ~seq ~pending state =
   match Net.status conn with
   | Net.Error msg -> `Lost msg
   | Net.Closed -> `Lost "the connection was closed"
-  | Net.Connecting | Net.Connected ->
+  (* We only get here once connected, so [Connecting] means something is very
+     wrong; [Net.send] below would raise on it anyway. *)
+  | Net.Connecting -> `Lost "the connection is not open"
+  | Net.Connected -> (
       let render_io = View.translate (Vec.v 0.0 500.0) io in
       if Input.is_down ~io (`input_char "f") then
         Window.set_fullscreen ~io (not (Window.get_fullscreen ~io));
@@ -100,63 +112,78 @@ let rec multiplayer ~io conn ~me ~code ~server_frame ~seq ~pending state =
         (Yojson.Safe.to_string
            (to_server_to_yojson { seq; for_frame = server_frame; input }));
       let pending = pending @ [ (seq, input) ] in
-      let full = ref false in
-      let waiting = ref false in
-      let server_frame, state, ack =
+      let polled =
         List.fold_left
-          (fun (sf, st, ack) msg ->
+          begin fun acc msg ->
             match to_client_of_yojson (Yojson.Safe.from_string msg) with
-            | Ok (State s) -> (s.frame, s.state, Some s.ack)
-            | Ok Waiting ->
-                waiting := true;
-                (sf, st, ack)
-            | Ok Full ->
-                full := true;
-                (sf, st, ack)
-            | Ok (Welcome _ | Unknown_game) | Error _ | (exception _) ->
-                (sf, st, ack))
-          (server_frame, state, None)
+            | Error _ | (exception _) ->
+                (* The server only ever sends valid protocol messages, so a
+                   message we cannot parse means the connection is unusable —
+                   fail loudly rather than play on with missing data. *)
+                Garbled
+            | Ok m ->
+                begin match (acc, m) with
+                | Garbled, _ -> Garbled
+                | _, Full -> Game_full
+                | Game_full, _ -> Game_full
+                | _, Waiting -> Waiting_for_opponent
+                | Waiting_for_opponent, _ -> Waiting_for_opponent
+                | Playing _, State s ->
+                    Playing
+                      {
+                        server_frame = s.frame;
+                        state = s.state;
+                        ack = Some s.ack;
+                      }
+                | Playing _, (Welcome _ | Unknown_game) -> acc
+                end
+          end
+          (Playing { server_frame; state; ack = None })
           (Net.poll conn)
       in
-      if !full then `Lost "the game is full"
-      else if !waiting then `Waiting
-      else
-        (* Drop inputs the server has confirmed; keep the rest to replay. Cap the
-     backlog so a dead connection can't make us replay an ever-growing list. *)
-        let pending =
-          match ack with
-          | None -> pending
-          | Some (a1, a2) ->
-              let my_ack = if me = 1 then a1 else a2 in
-              List.filter (fun (s, _) -> s > my_ack) pending
-        in
-        let pending =
-          let extra = List.length pending - 120 in
-          if extra > 0 then List.filteri (fun i _ -> i >= extra) pending
-          else pending
-        in
-        (* Predict our paddle: authoritative state + replay of unacked inputs. *)
-        let render_state =
-          let predict who paddle =
-            let block = if me = 1 then block_player1 else block_player2 in
-            let predicted =
-              List.fold_left
-                (fun p (_, inp) -> predict_step ~block p inp)
-                paddle pending
-            in
-            who predicted
+      match polled with
+      | Garbled -> `Lost "received an unreadable message from the server"
+      | Game_full -> `Lost "the game is full"
+      | Waiting_for_opponent -> `Waiting
+      | Playing { server_frame; state; ack } ->
+          (* Drop inputs the server has confirmed; keep the rest to replay. Cap
+             the backlog so a dead connection can't make us replay an
+             ever-growing list. *)
+          let pending =
+            match ack with
+            | None -> pending
+            | Some (a1, a2) ->
+                let my_ack = if me = 1 then a1 else a2 in
+                List.filter (fun (s, _) -> s > my_ack) pending
           in
-          match me with
-          | 1 -> predict (fun p -> { state with player1 = p }) state.player1
-          | 2 -> predict (fun p -> { state with player2 = p }) state.player2
-          | _ -> state
-        in
-        draw_state ~io:render_io render_state;
-        let status = Printf.sprintf "Game %05d — you are player %d" code me in
-        Text.draw ~io ~size:30 ~color:Color.white ~at:(Point.v 300.0 20.0)
-          status;
-        next_frame ~io;
-        multiplayer ~io conn ~me ~code ~server_frame ~seq ~pending state
+          let pending =
+            let extra = List.length pending - 120 in
+            if extra > 0 then List.filteri (fun i _ -> i >= extra) pending
+            else pending
+          in
+          (* Predict our paddle: authoritative state + replay of unacked
+             inputs. *)
+          let render_state =
+            let predict who paddle =
+              let block = if me = 1 then block_player1 else block_player2 in
+              let predicted =
+                List.fold_left
+                  (fun p (_, inp) -> predict_step ~block p inp)
+                  paddle pending
+              in
+              who predicted
+            in
+            match me with
+            | 1 -> predict (fun p -> { state with player1 = p }) state.player1
+            | 2 -> predict (fun p -> { state with player2 = p }) state.player2
+            | _ -> state
+          in
+          draw_state ~io:render_io render_state;
+          let status = Printf.sprintf "Game %05d — you are player %d" code me in
+          Text.draw ~io ~size:30 ~color:Color.white ~at:(Point.v 300.0 20.0)
+            status;
+          next_frame ~io;
+          multiplayer ~io conn ~me ~code ~server_frame ~seq ~pending state)
 
 (* Start menu to pick the game mode. [address] is the editable server address
    (host:port) used for multiplayer and [code] the editable game code to join;
@@ -231,16 +258,19 @@ let rec connecting_screen ~io conn =
 let rec error_screen ~io msg =
   draw_backdrop ~io;
   if Input.is_pressed ~io `escape then raise Exit;
-  let choice = ref None in
-  let _ =
-    Ui.window ~io ~at:(Point.v 360.0 420.0) begin fun [%ui] ->
-        Ui.text_area [%ui] "Connection failed";
-        Ui.text_area [%ui] msg;
-        if Ui.button [%ui] "Retry" then choice := Some `Retry;
-        if Ui.button [%ui] "Back to menu" then choice := Some `Menu
+  let choice =
+    snd
+      begin
+        Ui.window ~io ~at:(Point.v 360.0 420.0) begin fun [%ui] ->
+            Ui.text_area [%ui] "Connection failed";
+            Ui.text_area [%ui] msg;
+            if Ui.button [%ui] "Retry" then Some `Retry
+            else if Ui.button [%ui] "Back to menu" then Some `Menu
+            else None
+          end
       end
   in
-  match !choice with
+  match choice with
   | Some `Retry -> `Retry
   | Some `Menu -> `Menu
   | None ->
@@ -252,6 +282,18 @@ let rec error_screen ~io msg =
    for the creator to share with their opponent — while the game has only one
    player. Leaves on the first [State] (both players are in, [`Play]) or when
    the server rejects us or the connection drops ([`Lost]). *)
+(* Result of draining one frame's worth of server messages in [lobby]: either
+   we are still in the lobby (with whatever the server has told us so far), or
+   the server rejected us / sent something unreadable. [Rejected] absorbs every
+   later message so it wins regardless of its position in the batch. *)
+type lobby_polled =
+  | In_lobby of {
+      me : int;
+      code : int option;
+      first_state : server_state option;
+    }
+  | Rejected of string
+
 let rec lobby ~io conn ~me ~code =
   match Net.status conn with
   | Net.Error msg -> `Lost msg
@@ -259,29 +301,37 @@ let rec lobby ~io conn ~me ~code =
   | Net.Connecting | Net.Connected -> (
       draw_backdrop ~io;
       if Input.is_pressed ~io `escape then raise Exit;
-      let me = ref me and code = ref code in
-      let first_state = ref None in
-      let lost = ref None in
-      List.iter
-        (fun msg ->
-          match to_client_of_yojson (Yojson.Safe.from_string msg) with
-          | Ok (Welcome w) ->
-              me := w.player;
-              code := Some w.code
-          | Ok (State s) -> first_state := Some s
-          | Ok Waiting -> ()
-          | Ok Full -> lost := Some "this game is already full"
-          | Ok Unknown_game -> lost := Some "there is no game with this code"
-          | Error _ | (exception _) -> ())
-        (Net.poll conn);
-      match (!lost, !first_state, !code) with
-      | Some msg, _, _ -> `Lost msg
-      | None, Some s, Some code -> `Play (!me, code, s)
-      | None, _, _ ->
+      let polled =
+        List.fold_left
+          begin fun acc msg ->
+            match to_client_of_yojson (Yojson.Safe.from_string msg) with
+            | Error _ | (exception _) ->
+                Rejected "received an unreadable message from the server"
+            | Ok m ->
+                begin match (acc, m) with
+                | Rejected _, _ -> acc
+                | In_lobby l, Welcome w ->
+                    In_lobby { l with me = w.player; code = Some w.code }
+                | In_lobby l, State s ->
+                    In_lobby { l with first_state = Some s }
+                | In_lobby _, Waiting -> acc
+                | In_lobby _, Full -> Rejected "this game is already full"
+                | In_lobby _, Unknown_game ->
+                    Rejected "there is no game with this code"
+                end
+          end
+          (In_lobby { me; code; first_state = None })
+          (Net.poll conn)
+      in
+      match polled with
+      | Rejected msg -> `Lost msg
+      | In_lobby { me; code = Some code; first_state = Some s } ->
+          `Play (me, code, s)
+      | In_lobby { me; code; first_state = _ } ->
           let dots =
             String.make (1 + (int_of_float (clock ~io *. 2.0) mod 3)) '.'
           in
-          (match !code with
+          (match code with
           | None ->
               Text.draw ~io ~size:30 ~color:Color.white
                 ~at:(Point.v 380.0 360.0) ("Joining" ^ dots)
@@ -293,7 +343,7 @@ let rec lobby ~io conn ~me ~code =
                 ~at:(Point.v 300.0 400.0)
                 ("Waiting for another player" ^ dots));
           next_frame ~io;
-          lobby ~io conn ~me:!me ~code:!code)
+          lobby ~io conn ~me ~code)
 
 (* Drive one multiplayer session: connect, send the create/join request, wait
    in the lobby for an opponent, play, and on any failure offer to retry

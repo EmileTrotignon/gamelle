@@ -106,7 +106,12 @@ module Net : sig
     | Closed (* closed cleanly, by us or the server *)
     | Error of string (* the connection failed; the string describes why *)
 
+  (* Never raises: failures (including an invalid url) are reported through
+     [status]. *)
   val connect : string -> t
+
+  (* Raises [Failure] unless [status t = Connected]; check the status before
+     sending. *)
   val send : t -> string -> unit
 
   (* Messages received since the previous [poll], in arrival order. Never
