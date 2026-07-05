@@ -10,17 +10,17 @@ open Libvolley
 
    The server owns each simulation and ticks it at a fixed 60fps. Instead of
    applying "whatever input arrived last" at each tick (which lands inputs at
-   the wrong sim-time and feels jittery), it keeps a ~1 second ring buffer of
-   every frame's state and inputs. Each client tags its input with the frame it
-   was reacting to; when that input arrives (necessarily a little late) the
-   server inserts it at that frame and replays the simulation forward to the
-   present. This makes the simulation consistent regardless of network jitter,
-   never drops a single-frame jump, and gives us round-trip time for free.
+   the wrong sim-time and feels jittery), it keeps a ~1 second window of every
+   frame's state and inputs. Each client tags its input with the frame it was
+   reacting to; when that input arrives (necessarily a little late) the server
+   inserts it at that frame and replays the simulation forward to the present.
+   This makes the simulation consistent regardless of network jitter, never
+   drops a single-frame jump, and gives us round-trip time for free.
 
    A game only simulates while both players are present; with a single player
    it stays reset and sends [Waiting] each tick, and it is deleted once empty.
-   Everything runs in a single Lwt domain, so the shared mutable state below
-   needs no locking. *)
+
+ *)
 
 let port = 8080
 let dt = 1.0 /. 60.0
@@ -39,86 +39,263 @@ let half_lag = artificial_rtt /. 2.0
 let with_lag f =
   if half_lag > 0.0 then
     Lwt.async (fun () ->
-        let open Lwt.Syntax in
         let* () = Lwt_unix.sleep half_lag in
         f ())
   else Lwt.async f
 
 let window = 60 (* keep ~1s of history; inputs older than this are clamped *)
-let n = 128 (* ring buffer size, comfortably larger than [window] *)
 
-(* One hosted game. [snap.(f mod n)] is the state at the start of frame [f];
-   [inp.(f mod n)] are the two players' inputs applied during frame [f] (so
-   [snap.(f+1) = step snap.(f) inp.(f)]). [frame] is the latest simulated
-   frame. [dirty_from] is the earliest frame whose input changed since the last
-   tick and so needs replay. [last_lag] is the most recent measured round-trip
-   per player in frames (for the ping log); [last_seq] the highest input [seq]
-   applied per player, echoed back as [ack] so clients know which of their
-   predicted inputs the authoritative state already includes. [players.(slot)]
-   is the connection controlling player [slot + 1], and [running] whether the
-   simulation was ticking last frame (to log transitions and reset on pause). *)
-type game = {
-  code : int;
-  snap : state array;
-  inp : player_input array array;
-  mutable frame : int;
-  mutable dirty_from : int option;
-  last_lag : int array;
-  last_seq : int array;
-  players : Websocket_lwt_unix.Connected_client.t option array;
-  mutable last_points : int * int;
-  mutable running : bool;
+module Int_map = Map.Make (Int)
+
+(* Everything the simulation knows about one frame [f]: [snap] is the state at
+   the start of the frame and [inputs_1]/[inputs_2] what each player does
+   during it, so the state at the start of [f + 1] is
+   [step snap inputs_1 inputs_2]. *)
+type frame_data = {
+  snap : state;
+  inputs_1 : player_input;
+  inputs_2 : player_input;
 }
 
+(* One connected player. [last_seq] is the highest input sequence number
+   applied so far, echoed back as [ack] so the client knows which of its
+   predicted inputs the authoritative state already includes; [last_lag] the
+   most recent measured round-trip in frames (for the ping log). *)
+type seat = {
+  conn : Websocket_lwt_unix.Connected_client.t;
+  conn_id : int; (* connection number, only for the logs *)
+  last_seq : int;
+  last_lag : int;
+}
+
+(* Which player a connection controls. *)
+type slot = P1 | P2
+
+(* One hosted game. [frames] holds the [frame_data] of every frame in
+   [frame - window .. frame] ([frame] being the latest simulated frame), which
+   is what rollback can reach: inputs for older frames are clamped forward.
+   [dirty_from] is the earliest frame whose input changed since the last tick
+   and so needs replay. [running] is whether the simulation was ticking last
+   frame (to log transitions and reset on pause); [last_points] the score at
+   the previous tick (to log points as they are scored). *)
+type game = {
+  code : int;
+  frame : int;
+  frames : frame_data Int_map.t;
+  dirty_from : int option;
+  seat_1 : seat option;
+  seat_2 : seat option;
+  last_points : int * int;
+  running : bool;
+}
+
+let player_number = function P1 -> 1 | P2 -> 2
+let seat_of g = function P1 -> g.seat_1 | P2 -> g.seat_2
+
+let with_seat g slot seat =
+  match slot with
+  | P1 -> { g with seat_1 = seat }
+  | P2 -> { g with seat_2 = seat }
+
+let inputs_of fd = function P1 -> fd.inputs_1 | P2 -> fd.inputs_2
+
+let with_inputs fd slot input =
+  match slot with
+  | P1 -> { fd with inputs_1 = input }
+  | P2 -> { fd with inputs_2 = input }
+
+let is_full g = Option.is_some g.seat_1 && Option.is_some g.seat_2
+let is_empty g = Option.is_none g.seat_1 && Option.is_none g.seat_2
+
+let free_slot g =
+  if Option.is_none g.seat_1 then Some P1
+  else if Option.is_none g.seat_2 then Some P2
+  else None
+
+let initial_frames =
+  Int_map.singleton 0
+    { snap = initial_state; inputs_1 = no_input; inputs_2 = no_input }
+
+let new_game code =
+  {
+    code;
+    frame = 0;
+    frames = initial_frames;
+    dirty_from = None;
+    seat_1 = None;
+    seat_2 = None;
+    last_points = (0, 0);
+    running = false;
+  }
+
+(* Back to frame 0, ready for a fresh match; the connected seats stay but their
+   input bookkeeping restarts (the clients also restart [seq] at 0 there). *)
+let reset_sim g =
+  let reset_seat =
+    Option.map (fun seat -> { seat with last_seq = 0; last_lag = 0 })
+  in
+  {
+    g with
+    frame = 0;
+    frames = initial_frames;
+    dirty_from = None;
+    last_points = (0, 0);
+    running = false;
+    seat_1 = reset_seat g.seat_1;
+    seat_2 = reset_seat g.seat_2;
+  }
+
+(* The mutable core: the current value of each hosted game, keyed by its code,
+   plus a counter naming connections in the logs. *)
 let games : (int, game) Hashtbl.t = Hashtbl.create 16
-let next_id = ref 0
+let next_conn_id = ref 0
+
+(* Apply the pure event [f] to the current value of game [code], if it still
+   exists. *)
+let update_game code f =
+  match Hashtbl.find_opt games code with
+  | Some g -> Hashtbl.replace games code (f g)
+  | None -> ()
+
 let log fmt = Printf.printf ("[server] " ^^ fmt ^^ "\n%!")
 let to_client_msg m = Yojson.Safe.to_string (to_client_to_yojson m)
 
-let new_game () =
-  let rec fresh_code () =
+let fresh_code () =
+  let rec go () =
     let code = 10_000 + Random.int 90_000 in
-    if Hashtbl.mem games code then fresh_code () else code
+    if Hashtbl.mem games code then go () else code
   in
-  let code = fresh_code () in
+  go ()
+
+(* Record [input] at the frame the client was reacting to (clamped to the
+   rollback window) and mark the simulation for replay from there. The client
+   sends several inputs per server frame (one per client frame, all tagged with
+   the last server frame it has seen). Held direction is last-wins, but [jump]
+   is a one-frame event, so we OR it in: a later [jump = false] from the same
+   server frame must not erase a [jump = true] that already arrived. The
+   carry-forward in [tick_game] clears jump on the next frame, so a press still
+   fires exactly once. *)
+let record_input g slot ~seq ~for_frame input =
+  let f = max (g.frame - window) (min for_frame g.frame) in
   let g =
-    {
-      code;
-      snap = Array.make n initial_state;
-      inp = Array.init n (fun _ -> [| no_input; no_input |]);
-      frame = 0;
-      dirty_from = None;
-      last_lag = [| 0; 0 |];
-      last_seq = [| 0; 0 |];
-      players = [| None; None |];
-      last_points = (0, 0);
-      running = false;
-    }
+    match seat_of g slot with
+    | None -> g
+    | Some seat ->
+        with_seat g slot
+          (Some
+             {
+               seat with
+               last_seq = seq;
+               last_lag = max 0 (g.frame - for_frame);
+             })
   in
-  Hashtbl.replace games code g;
-  g
+  let frames =
+    Int_map.update f
+      (Option.map (fun fd ->
+           let prev = inputs_of fd slot in
+           with_inputs fd slot { input with jump = input.jump || prev.jump }))
+      g.frames
+  in
+  let dirty_from =
+    Some (match g.dirty_from with None -> f | Some d -> min d f)
+  in
+  { g with frames; dirty_from }
 
-let is_full g = Array.for_all Option.is_some g.players
+let handle_frame g slot (ws_frame : Websocket.Frame.t) =
+  match ws_frame.opcode with
+  | Websocket.Frame.Opcode.Text | Websocket.Frame.Opcode.Binary -> (
+      match to_server_of_yojson (Yojson.Safe.from_string ws_frame.content) with
+      | Ok { seq; for_frame; input } ->
+          record_input g slot ~seq ~for_frame input
+      | Error e ->
+          log "game %05d: player %d: ignoring bad input json (%s)" g.code
+            (player_number slot) e;
+          g
+      | exception exn ->
+          log "game %05d: player %d: ignoring unparseable input (%s)" g.code
+            (player_number slot) (Printexc.to_string exn);
+          g)
+  | _ -> g
 
-let free_slot g =
-  if Option.is_none g.players.(0) then Some 0
-  else if Option.is_none g.players.(1) then Some 1
-  else None
+let ms_of_frames f = int_of_float (Float.round (float_of_int f *. dt *. 1000.0))
 
-let reset_sim g =
-  Array.fill g.snap 0 n initial_state;
-  Array.iter
-    (fun a ->
-      a.(0) <- no_input;
-      a.(1) <- no_input)
-    g.inp;
-  g.frame <- 0;
-  g.dirty_from <- None;
-  g.last_points <- (0, 0);
-  g.last_lag.(0) <- 0;
-  g.last_lag.(1) <- 0;
-  g.last_seq.(0) <- 0;
-  g.last_seq.(1) <- 0
+(* One 60Hz tick of one game, as a pure map from the game to its next value
+   plus the message to broadcast. With both players present: replay from the
+   earliest changed frame (rollback), advance one new frame, emit the
+   authoritative state. Otherwise: keep the simulation reset and tell whoever
+   is there that they are waiting. *)
+let tick_game g =
+  if is_full g then begin
+    if not g.running then
+      log "game %05d: both players connected, simulation running" g.code;
+    let start =
+      match g.dirty_from with Some f -> min f g.frame | None -> g.frame
+    in
+    (* Replay [start .. frame]; the entry above the replayed one keeps its
+       inputs and only gets its snapshot refreshed, except the brand-new
+       current frame, which carries the held inputs forward (jump is momentary,
+       so it never carries; it only ever applies on the frame it was
+       pressed). [frames] covers [frame - window .. frame] and [start] is
+       within the window by construction, so the [find] cannot fail. *)
+    let rec replay frames f =
+      if f > g.frame then frames
+      else
+        let fd = Int_map.find f frames in
+        let snap = step ~dt ~input1:fd.inputs_1 ~input2:fd.inputs_2 fd.snap in
+        let frames =
+          Int_map.update (f + 1)
+            begin function
+              | Some fd' -> Some { fd' with snap }
+              | None ->
+                  Some
+                    {
+                      snap;
+                      inputs_1 = { fd.inputs_1 with jump = false };
+                      inputs_2 = { fd.inputs_2 with jump = false };
+                    }
+            end
+            frames
+        in
+        replay frames (f + 1)
+    in
+    let frame = g.frame + 1 in
+    let frames =
+      Int_map.filter (fun f _ -> f >= frame - window) (replay g.frames start)
+    in
+    let s = (Int_map.find frame frames).snap in
+    let points = (s.points1, s.points2) in
+    let lag slot =
+      match seat_of g slot with Some seat -> seat.last_lag | None -> 0
+    in
+    (* One log line per point scored, carrying the current pings so lag stays
+       observable without flooding the log. *)
+    if points <> g.last_points then
+      log "game %05d: score %d - %d (ping %dms / %dms)" g.code (fst points)
+        (snd points)
+        (ms_of_frames (lag P1))
+        (ms_of_frames (lag P2));
+    let seq slot =
+      match seat_of g slot with Some seat -> seat.last_seq | None -> 0
+    in
+    let msg =
+      to_client_msg (State { frame; state = s; ack = (seq P1, seq P2) })
+    in
+    ( {
+        g with
+        frame;
+        frames;
+        dirty_from = None;
+        last_points = points;
+        running = true;
+      },
+      msg )
+  end
+  else begin
+    if g.running then
+      log "game %05d: a player left, simulation paused and reset" g.code;
+    let g = if g.running then reset_sim g else g in
+    (g, to_client_msg Waiting)
+  end
 
 let send_to client msg =
   Lwt.catch
@@ -128,48 +305,10 @@ let send_to client msg =
     (fun _ -> Lwt.return_unit)
 
 let broadcast g msg =
-  Array.fold_left
-    (fun acc player ->
-      match player with None -> acc | Some c -> send_to c msg :: acc)
-    [] g.players
-  |> Lwt.join
-
-let mark_dirty g f =
-  g.dirty_from <- Some (match g.dirty_from with None -> f | Some d -> min d f)
-
-(* Record [input] for [slot] at the frame the client was reacting to, then mark
-   the simulation for replay from there. *)
-let record_input g slot ~seq ~for_frame input =
-  g.last_seq.(slot) <- seq;
-  g.last_lag.(slot) <- max 0 (g.frame - for_frame);
-  let f = max (g.frame - window) (min for_frame g.frame) in
-  let prev = g.inp.(f mod n).(slot) in
-  (* The client sends several inputs per server frame (one per client frame, all
-     tagged with the last server frame it has seen). Held direction is last-wins,
-     but [jump] is a one-frame event, so we OR it in: a later [jump=false] from
-     the same server frame must not erase a [jump=true] that already arrived. The
-     carry-forward in [tick] clears jump on the next frame, so a press still fires
-     exactly once. *)
-  let merged = { input with jump = input.jump || prev.jump } in
-  g.inp.(f mod n).(slot) <- merged;
-  mark_dirty g f
-
-let handle_frame g slot (ws_frame : Websocket.Frame.t) =
-  match ws_frame.opcode with
-  | Websocket.Frame.Opcode.Text | Websocket.Frame.Opcode.Binary ->
-      begin match
-        to_server_of_yojson (Yojson.Safe.from_string ws_frame.content)
-      with
-      | Ok { seq; for_frame; input } ->
-          record_input g slot ~seq ~for_frame input
-      | Error e ->
-          log "game %05d: player %d: ignoring bad input json (%s)" g.code
-            (slot + 1) e
-      | exception exn ->
-          log "game %05d: player %d: ignoring unparseable input (%s)" g.code
-            (slot + 1) (Printexc.to_string exn)
-      end
-  | _ -> ()
+  Lwt.join
+    (List.filter_map
+       (Option.map (fun seat -> send_to seat.conn msg))
+       [ g.seat_1; g.seat_2 ])
 
 let close_client client =
   Lwt.catch
@@ -183,25 +322,34 @@ let refuse client msg =
   let* () = send_to client (to_client_msg msg) in
   close_client client
 
-(* A player is attached to game [g] at [slot]: welcome them, then pump their
+(* A player sits down at [slot] of game [code]: welcome them, then pump their
    input frames into the simulation until they disconnect. Inputs are ignored
    while the game is not full (the simulation is paused and reset then). *)
-let attach client ~id g slot =
-  g.players.(slot) <- Some client;
-  log "player %d joined game %05d (connection #%d)" (slot + 1) g.code id;
+let attach client ~id ~code slot =
+  update_game code (fun g ->
+      with_seat g slot
+        (Some { conn = client; conn_id = id; last_seq = 0; last_lag = 0 }));
+  log "player %d joined game %05d (connection #%d)" (player_number slot) code id;
   let* () =
     send_to client
-      (to_client_msg (Welcome { player = slot + 1; code = g.code }))
+      (to_client_msg (Welcome { player = player_number slot; code }))
   in
   let release () =
-    g.players.(slot) <- None;
-    g.last_lag.(slot) <- 0;
-    g.last_seq.(slot) <- 0;
-    log "player %d left game %05d (connection #%d)" (slot + 1) g.code id;
-    if Array.for_all Option.is_none g.players then begin
-      Hashtbl.remove games g.code;
-      log "game %05d closed" g.code
-    end
+    update_game code (fun g -> with_seat g slot None);
+    log "player %d left game %05d (connection #%d)" (player_number slot) code id;
+    match Hashtbl.find_opt games code with
+    | Some g when is_empty g ->
+        Hashtbl.remove games code;
+        log "game %05d closed" code
+    | Some _ | None -> ()
+  in
+  let apply ws_frame g =
+    (* Guard against a stale connection: only the seat's current owner may
+       drive it, and only while the game is full. *)
+    match seat_of g slot with
+    | Some seat when seat.conn_id = id && is_full g ->
+        handle_frame g slot ws_frame
+    | Some _ | None -> g
   in
   let rec loop () =
     let* ws_frame = Websocket_lwt_unix.Connected_client.recv client in
@@ -211,7 +359,7 @@ let attach client ~id g slot =
         Lwt.return_unit
     | _ ->
         with_lag (fun () ->
-            if is_full g then handle_frame g slot ws_frame;
+            update_game code (apply ws_frame);
             Lwt.return_unit);
         loop ()
   in
@@ -228,17 +376,18 @@ let parse_hello (ws_frame : Websocket.Frame.t) =
   | _ -> None
 
 let handler client =
-  let id = !next_id in
-  incr next_id;
+  let id = !next_conn_id in
+  incr next_conn_id;
   Lwt.catch
     begin fun () ->
       (* The first message must be a [hello] choosing which game to enter. *)
       let* first = Websocket_lwt_unix.Connected_client.recv client in
       match parse_hello first with
       | Some Create ->
-          let g = new_game () in
-          log "game %05d created (connection #%d)" g.code id;
-          attach client ~id g 0
+          let code = fresh_code () in
+          Hashtbl.replace games code (new_game code);
+          log "game %05d created (connection #%d)" code id;
+          attach client ~id ~code P1
       | Some (Join code) -> (
           match Hashtbl.find_opt games code with
           | None ->
@@ -249,87 +398,35 @@ let handler client =
               | None ->
                   log "connection #%d refused: game %05d is full" id code;
                   refuse client Full
-              | Some slot -> attach client ~id g slot))
+              | Some slot -> attach client ~id ~code slot))
       | None ->
           log "connection #%d: bad hello, closing" id;
           close_client client
     end
     (fun _ -> Lwt.return_unit)
 
-let ms_of_frames f = int_of_float (Float.round (float_of_int f *. dt *. 1000.0))
-
-(* One 60Hz tick of one game. With both players present: replay from the
-   earliest changed frame (rollback), advance one new frame, broadcast the
-   authoritative state. Otherwise: keep the simulation reset and tell whoever
-   is there that they are waiting. *)
-let tick_game g =
-  if is_full g then begin
-    if not g.running then begin
-      g.running <- true;
-      log "game %05d: both players connected, simulation running" g.code
-    end;
-    let start =
-      match g.dirty_from with Some f -> min f g.frame | None -> g.frame
-    in
-    g.dirty_from <- None;
-    for f = start to g.frame do
-      g.snap.((f + 1) mod n) <-
-        step ~dt
-          ~input1:g.inp.(f mod n).(0)
-          ~input2:g.inp.(f mod n).(1)
-          g.snap.(f mod n)
-    done;
-    g.frame <- g.frame + 1;
-    (* Carry held inputs forward to the new current frame (jump is momentary, so
-       it never carries; it only ever applies on the frame it was pressed). *)
-    let prev = (g.frame - 1) mod n and cur = g.frame mod n in
-    g.inp.(cur).(0) <- { (g.inp.(prev).(0)) with jump = false };
-    g.inp.(cur).(1) <- { (g.inp.(prev).(1)) with jump = false };
-    let s = g.snap.(g.frame mod n) in
-    let pts = (s.points1, s.points2) in
-    (* One log line per point scored, carrying the current pings so lag stays
-       observable without flooding the log. *)
-    if pts <> g.last_points then begin
-      g.last_points <- pts;
-      log "game %05d: score %d - %d (ping %dms / %dms)" g.code (fst pts)
-        (snd pts)
-        (ms_of_frames g.last_lag.(0))
-        (ms_of_frames g.last_lag.(1))
-    end;
-    let msg =
-      to_client_msg
-        (State
-           {
-             frame = g.frame;
-             state = s;
-             ack = (g.last_seq.(0), g.last_seq.(1));
-           })
-    in
-    (* Don't block the tick on the network; apply the outbound artificial delay. *)
-    with_lag (fun () -> broadcast g msg)
-  end
-  else begin
-    if g.running then begin
-      g.running <- false;
-      reset_sim g;
-      log "game %05d: a player left, simulation paused and reset" g.code
-    end;
-    with_lag (fun () -> broadcast g (to_client_msg Waiting))
-  end
+(* Tick every game once: swap in the new game values, then send the broadcasts
+   (off the tick path, and with the outbound artificial delay). *)
+let tick_all () =
+  let ticked =
+    Hashtbl.fold (fun code g acc -> (code, tick_game g) :: acc) games []
+  in
+  List.iter
+    (fun (code, (g, msg)) ->
+      Hashtbl.replace games code g;
+      with_lag (fun () -> broadcast g msg))
+    ticked
 
 (* Tick on an absolute schedule rather than [sleep dt] (whose overshoot would
    make us run below 60Hz and desync from the 60fps clients). *)
-let next_deadline = ref 0.0
-
-let rec tick () =
-  if !next_deadline = 0.0 then next_deadline := Unix.gettimeofday ();
-  next_deadline := !next_deadline +. dt;
+let rec tick deadline =
+  let deadline = deadline +. dt in
   let now = Unix.gettimeofday () in
   (* If we fell badly behind, resync instead of bursting to catch up. *)
-  if !next_deadline < now -. 0.25 then next_deadline := now +. dt;
-  let* () = Lwt_unix.sleep (max 0.0 (!next_deadline -. now)) in
-  Hashtbl.iter (fun _ g -> tick_game g) games;
-  tick ()
+  let deadline = if deadline < now -. 0.25 then now +. dt else deadline in
+  let* () = Lwt_unix.sleep (max 0.0 (deadline -. now)) in
+  tick_all ();
+  tick deadline
 
 (* Best-effort discovery of the LAN IP other machines should connect to: open a
    UDP socket "towards" an external address (no packet is actually sent — connect
@@ -357,4 +454,4 @@ let () =
       ~mode:(`TCP (`Port port))
       handler
   in
-  Lwt_main.run (Lwt.join [ server; tick () ])
+  Lwt_main.run (Lwt.join [ server; tick (Unix.gettimeofday ()) ])
