@@ -175,17 +175,26 @@ let step ~dt ~input1 ~input2 ({ ball; _ } as state) =
    - Server -> client: a [to_client] message — first a [Welcome] telling the
      client which player it controls and the game's code (to display so a
      friend can join), then a [State] every tick while both players are
-     present: the server [frame], the [state] to render, and [ack], the last
-     [seq] the server has applied for (player 1, player 2). While the game has
-     only one player the server sends [Waiting] each tick instead. Joining a
-     game that already has two players gets [Full]; joining a code that does
-     not exist gets [Unknown_game]. *)
+     present: the server [frame], the [state] to render, [ack], the last
+     [seq] the server has applied for (player 1, player 2), and
+     [inputs_1]/[inputs_2], the inputs it applied on that frame — a client
+     replaying ahead of the authoritative state assumes the opponent's held
+     keys stay held ([jump] is a one-frame event and does not carry). While
+     the game has only one player the server sends [Waiting] each tick
+     instead. Joining a game that already has two players gets [Full];
+     joining a code that does not exist gets [Unknown_game]. *)
 type hello = Create | Join of int [@@deriving yojson]
 
 type to_server = { seq : int; for_frame : int; input : player_input }
 [@@deriving yojson]
 
-type server_state = { frame : int; state : state; ack : int * int }
+type server_state = {
+  frame : int;
+  state : state;
+  ack : int * int;
+  inputs_1 : player_input;
+  inputs_2 : player_input;
+}
 [@@deriving yojson]
 
 type welcome = { player : int; code : int } [@@deriving yojson]

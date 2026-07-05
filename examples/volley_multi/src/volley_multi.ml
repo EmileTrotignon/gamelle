@@ -55,27 +55,30 @@ let rec singleplayer ~io state =
    applied, so we know exactly which inputs to replay. The ball and the opponent
    are not predicted — they come straight from the server. *)
 
-(* One frame of our paddle's simulation, matching what the server does for it in
-   [step]: move from the input, then keep it inside the world (walls + our half
-   divider). The ball/opponent are left out — the paddle is ~1000x heavier than
-   the ball, so ignoring that contact is a good approximation. *)
-let predict_step ~block paddle input =
+(* One frame of prediction: the exact same [step] the server runs, with the
+   one thing we cannot know — the opponent's input — assumed to be the last
+   one the server reported, on the theory that held keys stay held. The caller
+   keeps only our own paddle from the result: the ball and the opponent still
+   render straight from the server, and their influence on our paddle during
+   the replayed round trip is negligible (it is ~1000x heavier than the
+   ball). dt is the fixed server tick, not the client's frame time. *)
+let predict_step ~me ~opponent_input state input =
   let dt = 1.0 /. 60.0 in
-  let gravity = Vec.v 0.0 (1500.0 *. dt) in
-  let paddle = update_player ~dt ~gravity ~input ~player:paddle in
-  let shape =
-    let open Physics.CollisionOp in
-    let+ shape = obj paddle.shape and+ _world = obj_list world in
-    let+ shape = obj shape and+ _ = obj block in
-    shape
+  let input1, input2 =
+    if me = 1 then (input, opponent_input) else (opponent_input, input)
   in
-  { paddle with shape }
+  step ~dt ~input1 ~input2 state
 
 (* Result of draining one frame's worth of server messages in [multiplayer].
    Constructors are listed from healthy to fatal; a more severe outcome wins
    over a less severe one no matter where its message appears in the batch. *)
 type polled =
-  | Playing of { server_frame : int; state : state; ack : (int * int) option }
+  | Playing of {
+      server_frame : int;
+      state : state;
+      ack : (int * int) option;
+      opponent_input : player_input;
+    }
   | Waiting_for_opponent
   | Game_full
   | Garbled
@@ -83,12 +86,15 @@ type polled =
 (* Multiplayer client. [server_frame] is the latest server frame seen (tags our
    outgoing inputs and drives the server's lag compensation), [seq] our input
    counter, [pending] the inputs we have sent but the server has not acked yet
-   (oldest first), replayed on top of the authoritative state for prediction. *)
+   (oldest first), replayed on top of the authoritative state for prediction,
+   and [opponent_input] the opponent's input on the last [State] received,
+   assumed to still hold while we replay. *)
 (* Returns [`Lost msg] when the connection drops or the server rejects us
    ([play_multiplayer] turns that into a retryable error screen), or [`Waiting]
    when the opponent leaves (back to the waiting-for-opponent screen). Only
    ever exits the loop those ways (or via [Exit] to quit the whole game). *)
-let rec multiplayer ~io conn ~me ~code ~server_frame ~seq ~pending state =
+let rec multiplayer ~io conn ~me ~code ~server_frame ~seq ~pending
+    ~opponent_input state =
   (* Bail out of the game loop as soon as the connection is no longer healthy. *)
   match Net.status conn with
   | Net.Error msg -> `Lost msg
@@ -134,18 +140,20 @@ let rec multiplayer ~io conn ~me ~code ~server_frame ~seq ~pending state =
                         server_frame = s.frame;
                         state = s.state;
                         ack = Some s.ack;
+                        opponent_input =
+                          (if me = 1 then s.inputs_2 else s.inputs_1);
                       }
                 | Playing _, (Welcome _ | Unknown_game) -> acc
                 end
           end
-          (Playing { server_frame; state; ack = None })
+          (Playing { server_frame; state; ack = None; opponent_input })
           (Net.poll conn)
       in
       match polled with
       | Garbled -> `Lost "received an unreadable message from the server"
       | Game_full -> `Lost "the game is full"
       | Waiting_for_opponent -> `Waiting
-      | Playing { server_frame; state; ack } ->
+      | Playing { server_frame; state; ack; opponent_input } ->
           (* Drop inputs the server has confirmed; keep the rest to replay. Cap
              the backlog so a dead connection can't make us replay an
              ever-growing list. *)
@@ -164,18 +172,14 @@ let rec multiplayer ~io conn ~me ~code ~server_frame ~seq ~pending state =
           (* Predict our paddle: authoritative state + replay of unacked
              inputs. *)
           let render_state =
-            let predict who paddle =
-              let block = if me = 1 then block_player1 else block_player2 in
-              let predicted =
-                List.fold_left
-                  (fun p (_, inp) -> predict_step ~block p inp)
-                  paddle pending
-              in
-              who predicted
+            let predicted =
+              List.fold_left
+                (fun s (_, inp) -> predict_step ~me ~opponent_input s inp)
+                state pending
             in
             match me with
-            | 1 -> predict (fun p -> { state with player1 = p }) state.player1
-            | 2 -> predict (fun p -> { state with player2 = p }) state.player2
+            | 1 -> { state with player1 = predicted.player1 }
+            | 2 -> { state with player2 = predicted.player2 }
             | _ -> state
           in
           draw_state ~io:render_io render_state;
@@ -183,7 +187,8 @@ let rec multiplayer ~io conn ~me ~code ~server_frame ~seq ~pending state =
           Text.draw ~io ~size:30 ~color:Color.white ~at:(Point.v 300.0 20.0)
             status;
           next_frame ~io;
-          multiplayer ~io conn ~me ~code ~server_frame ~seq ~pending state)
+          multiplayer ~io conn ~me ~code ~server_frame ~seq ~pending
+            ~opponent_input state)
 
 (* Start menu to pick the game mode. [address] is the editable server address
    (host:port) used for multiplayer and [code] the editable game code to join;
@@ -395,7 +400,9 @@ let rec play_multiplayer ~io ~address ~hello : [ `Menu ] =
         | `Play (me, code, (s : server_state)) -> (
             match
               multiplayer ~io conn ~me ~code ~server_frame:s.frame ~seq:0
-                ~pending:[] s.state
+                ~pending:[]
+                ~opponent_input:(if me = 1 then s.inputs_2 else s.inputs_1)
+                s.state
             with
             | `Lost msg -> on_failure msg
             | `Waiting -> session ~me ~code:(Some code))

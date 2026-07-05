@@ -264,7 +264,8 @@ let tick_game g =
     let frames =
       Int_map.filter (fun f _ -> f >= frame - window) (replay g.frames start)
     in
-    let s = (Int_map.find frame frames).snap in
+    let fd = Int_map.find frame frames in
+    let s = fd.snap in
     let points = (s.points1, s.points2) in
     let lag slot =
       match seat_of g slot with Some seat -> seat.last_lag | None -> 0
@@ -279,8 +280,19 @@ let tick_game g =
     let seq slot =
       match seat_of g slot with Some seat -> seat.last_seq | None -> 0
     in
+    (* Broadcast the inputs applied on this frame alongside the state: clients
+       extrapolating past the authoritative state assume held keys stay held
+       (the carry-forward above already cleared [jump]). *)
     let msg =
-      to_client_msg (State { frame; state = s; ack = (seq P1, seq P2) })
+      to_client_msg
+        (State
+           {
+             frame;
+             state = s;
+             ack = (seq P1, seq P2);
+             inputs_1 = fd.inputs_1;
+             inputs_2 = fd.inputs_2;
+           })
     in
     ( {
         g with
