@@ -237,13 +237,13 @@ let tick_game g =
        so it never carries; it only ever applies on the frame it was
        pressed). [frames] covers [frame - window .. frame] and [start] is
        within the window by construction, so the [find] cannot fail. *)
-    let rec replay frames f =
-      if f > g.frame then frames
+    let rec replay frames frame =
+      if frame > g.frame then frames
       else
-        let fd = Int_map.find f frames in
+        let fd = Int_map.find frame frames in
         let snap = step ~dt ~input1:fd.inputs_1 ~input2:fd.inputs_2 fd.snap in
         let frames =
-          Int_map.update (f + 1)
+          Int_map.update (frame + 1)
             begin function
               | Some fd' -> Some { fd' with snap }
               | None ->
@@ -256,7 +256,7 @@ let tick_game g =
             end
             frames
         in
-        replay frames (f + 1)
+        replay frames (frame + 1)
     in
     let frame = g.frame + 1 in
     let frames =
