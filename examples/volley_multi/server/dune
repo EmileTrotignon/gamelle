@@ -1,0 +1,11 @@
+(executable
+ (name main)
+ (public_name volley-server)
+ (libraries
+  libvolley
+  websocket-lwt-unix
+  conduit-lwt-unix
+  lwt
+  lwt.unix
+  unix
+  yojson))

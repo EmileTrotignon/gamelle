@@ -20,3 +20,41 @@
   (glob_files_rec examples/trigonometry_sprint/**)
   (glob_files_rec examples/ui/**)
   (source_tree examples/volley)))
+
+; The whole publishable documentation site: the odoc html plus the playable
+; example pages that doc/index.mld links to (dune's (documentation) stanza
+; does not support asset files yet, so they are copied next to the odoc
+; output by hand). Build with [dune build site]; the Pages deployment
+; workflow uploads [_build/default/site].
+
+(rule
+ (targets
+  (dir site))
+ (deps
+  (sandbox none)
+  (alias_rec doc)
+  examples/morpion/morpion.html
+  examples/pong/pong.html
+  examples/routine/routine.html
+  examples/snake/snake.html
+  examples/sound/sound.html
+  examples/trigonometry_sprint/trigonometry_sprint.html
+  examples/ui/ui.html
+  examples/volley/volley.html
+  examples/volley_multi/volley_multi.html)
+ (action
+  (progn
+   (run mkdir -p site/examples)
+   (run sh -c "cp -r _doc/_html/. site/")
+   (run
+    cp
+    examples/morpion/morpion.html
+    examples/pong/pong.html
+    examples/routine/routine.html
+    examples/snake/snake.html
+    examples/sound/sound.html
+    examples/trigonometry_sprint/trigonometry_sprint.html
+    examples/ui/ui.html
+    examples/volley/volley.html
+    examples/volley_multi/volley_multi.html
+    site/examples/))))

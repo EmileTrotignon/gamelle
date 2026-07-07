@@ -1,6 +1,6 @@
 (library
  (public_name gamelle.jsoo)
  (name gamelle_jsoo)
- (private_modules bitmap clip jsoo text draw events_js font_ sound)
+ (private_modules bitmap clip jsoo text draw events_js font_ sound net)
  (libraries brr gamelle_common)
  (implements gamelle))

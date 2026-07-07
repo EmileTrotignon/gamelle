@@ -92,3 +92,34 @@ module Window : sig
   val get_fullscreen : io:io -> bool
   val size : io:io -> Size.t
 end
+
+module Net : sig
+  (* A websocket connection. The transport runs asynchronously (a background
+     domain running Lwt on native backends, the browser event loop on jsoo); the
+     game reads and writes it non-blockingly, once per frame, via [poll] and
+     [send]. *)
+  type t
+
+  type status =
+    | Connecting (* handshake in progress *)
+    | Connected (* open and usable *)
+    | Closed (* closed cleanly, by us or the server *)
+    | Error of string (* the connection failed; the string describes why *)
+
+  (* Never raises: failures (including an invalid url) are reported through
+     [status]. *)
+  val connect : string -> t
+
+  (* Raises [Failure] unless [status t = Connected]; check the status before
+     sending. *)
+  val send : t -> string -> unit
+
+  (* Messages received since the previous [poll], in arrival order. Never
+     blocks. *)
+  val poll : t -> string list
+
+  (* Current state of the connection. Never blocks. *)
+  val status : t -> status
+  val is_connected : t -> bool
+  val close : t -> unit
+end

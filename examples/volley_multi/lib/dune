@@ -1,0 +1,11 @@
+(library
+ (name libvolley)
+ ; Depends only on the backend-free [gamelle.physics] (not [gamelle]) so the
+ ; headless server doesn't have to link a graphics backend.
+ (libraries
+  gamelle.physics
+  gamelle.common
+  yojson
+  ppx_deriving_yojson.runtime)
+ (preprocess
+  (pps ppx_deriving_yojson)))

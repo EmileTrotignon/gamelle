@@ -111,3 +111,5 @@ let run () =
   Sdl.destroy_window window
 
 let run state update = State.run state update ~start:run ~reload:Replay.reload
+
+module Net = Net

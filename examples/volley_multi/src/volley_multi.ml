@@ -1,0 +1,423 @@
+open Gamelle
+open Libvolley
+
+(* Rendering only — no simulation. Used both by the singleplayer loop (on the
+   state it just computed) and by the multiplayer client (on the state received
+   from the server). *)
+let draw_state ~io { player1; player2; ball; points1; points2 } =
+  List.iter (Physics.fill ~io ~color:Color.white) world;
+  Physics.fill ~io ~color:Color.blue player1.shape;
+  Physics.fill ~io ~color:Color.blue player2.shape;
+  Physics.fill ~io ~color:Color.red ball;
+  List.iter (Physics.draw ~io) world;
+  Physics.draw ~io player1.shape;
+  Physics.draw ~io player2.shape;
+  Physics.draw ~io ball;
+  Text.draw ~io ~size:40 ~color:Color.white (string_of_int points1)
+    ~at:(Point.v 20.0 10.0);
+  Text.draw ~io ~size:40 ~color:Color.white (string_of_int points2)
+    ~at:(Point.v 960.0 10.0)
+
+(* Singleplayer: the whole simulation runs locally, two players share the
+   keyboard (WASD and the arrow keys). *)
+let rec singleplayer ~io state =
+  let render_io = View.translate (Vec.v 0.0 500.0) io in
+  Box.fill ~io:render_io ~color:Color.black (Window.box ~io:render_io);
+  if Input.is_down ~io (`input_char "f") then
+    Window.set_fullscreen ~io (not (Window.get_fullscreen ~io));
+  if Input.is_pressed ~io `escape then raise Exit;
+  let state =
+    if Input.is_down ~io (`input_char "r") then initial_state
+    else
+      let event = Gamelle.Event_snapshot.of_io ~io in
+      let input1 =
+        read_player_input event ~left:(`physical_char 'a')
+          ~right:(`physical_char 'd') ~up:(`physical_char 'w')
+          ~down:(`physical_char 's')
+      in
+      let input2 =
+        read_player_input event ~left:`arrow_left ~right:`arrow_right
+          ~up:`arrow_up ~down:`arrow_down
+      in
+      step ~dt:(dt ~io) ~input1 ~input2 state
+  in
+  draw_state ~io:render_io state;
+  next_frame ~io;
+  singleplayer ~io state
+
+(* --- Client-side prediction with server reconciliation ---
+
+   The server is authoritative, but waiting a full round trip to see your own
+   paddle move feels laggy. So we predict our paddle locally: take the latest
+   authoritative paddle from the server and replay every input we have sent that
+   the server has not acknowledged yet, applying the same per-frame update the
+   server does. Each input carries a [seq]; the server echoes the last [seq] it
+   applied, so we know exactly which inputs to replay. The ball and the opponent
+   are not predicted — they come straight from the server. *)
+
+(* One frame of prediction: the exact same [step] the server runs, with the
+   one thing we cannot know — the opponent's input — assumed to be the last
+   one the server reported, on the theory that held keys stay held. The caller
+   keeps only our own paddle from the result: the ball and the opponent still
+   render straight from the server, and their influence on our paddle during
+   the replayed round trip is negligible (it is ~1000x heavier than the
+   ball). dt is the fixed server tick, not the client's frame time. *)
+let predict_step ~me ~opponent_input state input =
+  let dt = 1.0 /. 60.0 in
+  let input1, input2 =
+    if me = 1 then (input, opponent_input) else (opponent_input, input)
+  in
+  step ~dt ~input1 ~input2 state
+
+(* Result of draining one frame's worth of server messages in [multiplayer].
+   Constructors are listed from healthy to fatal; a more severe outcome wins
+   over a less severe one no matter where its message appears in the batch. *)
+type polled =
+  | Playing of {
+      server_frame : int;
+      state : state;
+      ack : (int * int) option;
+      opponent_input : player_input;
+    }
+  | Waiting_for_opponent
+  | Game_full
+  | Garbled
+
+(* Multiplayer client. [server_frame] is the latest server frame seen (tags our
+   outgoing inputs and drives the server's lag compensation), [seq] our input
+   counter, [pending] the inputs we have sent but the server has not acked yet
+   (oldest first), replayed on top of the authoritative state for prediction,
+   and [opponent_input] the opponent's input on the last [State] received,
+   assumed to still hold while we replay. *)
+(* Returns [`Lost msg] when the connection drops or the server rejects us
+   ([play_multiplayer] turns that into a retryable error screen), or [`Waiting]
+   when the opponent leaves (back to the waiting-for-opponent screen). Only
+   ever exits the loop those ways (or via [Exit] to quit the whole game). *)
+let rec multiplayer ~io conn ~me ~code ~server_frame ~seq ~pending
+    ~opponent_input state =
+  (* Bail out of the game loop as soon as the connection is no longer healthy. *)
+  match Net.status conn with
+  | Net.Error msg -> `Lost msg
+  | Net.Closed -> `Lost "the connection was closed"
+  (* We only get here once connected, so [Connecting] means something is very
+     wrong; [Net.send] below would raise on it anyway. *)
+  | Net.Connecting -> `Lost "the connection is not open"
+  | Net.Connected -> (
+      let render_io = View.translate (Vec.v 0.0 500.0) io in
+      if Input.is_down ~io (`input_char "f") then
+        Window.set_fullscreen ~io (not (Window.get_fullscreen ~io));
+      if Input.is_pressed ~io `escape then raise Exit;
+      let event = Gamelle.Event_snapshot.of_io ~io in
+      let input =
+        read_player_input event ~left:(`physical_char 'a')
+          ~right:(`physical_char 'd') ~up:(`physical_char 'w')
+          ~down:(`physical_char 's')
+      in
+      let seq = seq + 1 in
+      Net.send conn
+        (Yojson.Safe.to_string
+           (to_server_to_yojson { seq; for_frame = server_frame; input }));
+      let pending = pending @ [ (seq, input) ] in
+      let polled =
+        List.fold_left
+          begin fun acc msg ->
+            match to_client_of_yojson (Yojson.Safe.from_string msg) with
+            | Error _ | (exception _) ->
+                (* The server only ever sends valid protocol messages, so a
+                   message we cannot parse means the connection is unusable —
+                   fail loudly rather than play on with missing data. *)
+                Garbled
+            | Ok m ->
+                begin match (acc, m) with
+                | Garbled, _ -> Garbled
+                | _, Full -> Game_full
+                | Game_full, _ -> Game_full
+                | _, Waiting -> Waiting_for_opponent
+                | Waiting_for_opponent, _ -> Waiting_for_opponent
+                | Playing _, State s ->
+                    Playing
+                      {
+                        server_frame = s.frame;
+                        state = s.state;
+                        ack = Some s.ack;
+                        opponent_input =
+                          (if me = 1 then s.inputs_2 else s.inputs_1);
+                      }
+                | Playing _, (Welcome _ | Unknown_game) -> acc
+                end
+          end
+          (Playing { server_frame; state; ack = None; opponent_input })
+          (Net.poll conn)
+      in
+      match polled with
+      | Garbled -> `Lost "received an unreadable message from the server"
+      | Game_full -> `Lost "the game is full"
+      | Waiting_for_opponent -> `Waiting
+      | Playing { server_frame; state; ack; opponent_input } ->
+          (* Drop inputs the server has confirmed; keep the rest to replay. Cap
+             the backlog so a dead connection can't make us replay an
+             ever-growing list. *)
+          let pending =
+            match ack with
+            | None -> pending
+            | Some (a1, a2) ->
+                let my_ack = if me = 1 then a1 else a2 in
+                List.filter (fun (s, _) -> s > my_ack) pending
+          in
+          let pending =
+            let extra = List.length pending - 120 in
+            if extra > 0 then List.filteri (fun i _ -> i >= extra) pending
+            else pending
+          in
+          (* Predict our paddle: authoritative state + replay of unacked
+             inputs. *)
+          let render_state =
+            let predicted =
+              List.fold_left
+                (fun s (_, inp) -> predict_step ~me ~opponent_input s inp)
+                state pending
+            in
+            match me with
+            | 1 -> { state with player1 = predicted.player1 }
+            | 2 -> { state with player2 = predicted.player2 }
+            | _ -> state
+          in
+          draw_state ~io:render_io render_state;
+          let status = Printf.sprintf "Game %04d — you are player %d" code me in
+          Text.draw ~io ~size:30 ~color:Color.white ~at:(Point.v 300.0 20.0)
+            status;
+          next_frame ~io;
+          multiplayer ~io conn ~me ~code ~server_frame ~seq ~pending
+            ~opponent_input state)
+
+(* Start menu to pick the game mode. [address] is the editable server address
+   (host:port) used for multiplayer and [code] the editable game code to join;
+   both are threaded through frames so the text inputs keep their content. For
+   multiplayer you either create a game (you get a code to share) or join an
+   existing one by typing its 4-digit code. [error] is shown under the join
+   button: clicking "Join game" with a code that is not a number must complain
+   rather than silently do nothing. *)
+let rec menu ~io address code error =
+  Box.fill ~io ~color:Color.black (Window.box ~io);
+  Text.draw ~io ~size:60 ~color:Color.white ~at:(Point.v 360.0 200.0) "Volley";
+  if Input.is_down ~io (`input_char "f") then
+    Window.set_fullscreen ~io (not (Window.get_fullscreen ~io));
+  if Input.is_pressed ~io `escape then raise Exit;
+  let choice =
+    snd
+      begin
+        Ui.window
+          ~size:begin fun s ->
+            let w = Size.width s and h = Size.height s in
+            Size.v (w *. 1.5) h
+          end ~io ~at:(Point.v 360.0 400.0) begin fun [%ui] ->
+          if Ui.button [%ui] "Singleplayer" then `Single
+          else begin
+            Ui.label [%ui] "Server address:";
+            let address = Ui.text_input [%ui] address in
+            if Ui.button [%ui] "Create game" then `Multi (address, code, Create)
+            else begin
+              Ui.label [%ui] "Game code:";
+              let code = Ui.text_input [%ui] code in
+              let clicked = Ui.button [%ui] "Join game" in
+              (match error with Some e -> Ui.text_area [%ui] e | None -> ());
+              if clicked then
+                match int_of_string_opt (String.trim code) with
+                | Some c -> `Multi (address, code, Join c)
+                | None ->
+                    `NoChoice
+                      ( address,
+                        code,
+                        Some
+                          (Printf.sprintf
+                             "%S is not a game code: expected the 4 digits \
+                              shown on the creator's screen, e.g. 8329"
+                             code) )
+              else `NoChoice (address, code, error)
+            end
+          end
+          end
+      end
+  in
+  match choice with
+  | `NoChoice (address, code, error) ->
+      next_frame ~io;
+      menu ~io address code error
+  | (`Single | `Multi _) as c -> c
+
+(* Shared backdrop + title for the connection screens, matching the menu. *)
+let draw_backdrop ~io =
+  Box.fill ~io ~color:Color.black (Window.box ~io);
+  Text.draw ~io ~size:60 ~color:Color.white ~at:(Point.v 360.0 200.0) "Volley"
+
+(* Loading screen shown while the websocket handshake is in progress. Polls
+   [Net.status] each frame and leaves as soon as the socket opens or fails. *)
+let rec connecting_screen ~io conn =
+  draw_backdrop ~io;
+  if Input.is_pressed ~io `escape then raise Exit;
+  (* A little animated ellipsis so the screen doesn't look frozen. *)
+  let dots = String.make (1 + (int_of_float (clock ~io *. 2.0) mod 3)) '.' in
+  Text.draw ~io ~size:30 ~color:Color.white ~at:(Point.v 380.0 360.0)
+    ("Connecting" ^ dots);
+  match Net.status conn with
+  | Net.Connected -> `Connected
+  | Net.Closed -> `Failed "the connection was closed"
+  | Net.Error msg -> `Failed msg
+  | Net.Connecting ->
+      next_frame ~io;
+      connecting_screen ~io conn
+
+(* Error screen with a retry / back-to-menu choice, shown when a connection
+   attempt or an in-game connection fails. *)
+let rec error_screen ~io msg =
+  draw_backdrop ~io;
+  if Input.is_pressed ~io `escape then raise Exit;
+  let choice =
+    snd
+      begin
+        Ui.window ~io ~at:(Point.v 360.0 420.0) begin fun [%ui] ->
+            (* No fixed "Connection failed" heading: the server also lands us
+               here with rejections ([Unknown_game], [Full]) where the
+               connection itself worked fine; [msg] alone tells the truth. *)
+            Ui.text_area [%ui] msg;
+            if Ui.button [%ui] "Retry" then Some `Retry
+            else if Ui.button [%ui] "Back to menu" then Some `Menu
+            else None
+          end
+      end
+  in
+  match choice with
+  | Some `Retry -> `Retry
+  | Some `Menu -> `Menu
+  | None ->
+      next_frame ~io;
+      error_screen ~io msg
+
+(* Waiting room shown after the hello is sent, until the game actually starts:
+   first "Joining…" (waiting for the server's [Welcome]), then the game code —
+   for the creator to share with their opponent — while the game has only one
+   player. Leaves on the first [State] (both players are in, [`Play]) or when
+   the server rejects us or the connection drops ([`Lost]). *)
+(* Result of draining one frame's worth of server messages in [lobby]: either
+   we are still in the lobby (with whatever the server has told us so far), or
+   the server rejected us / sent something unreadable. [Rejected] absorbs every
+   later message so it wins regardless of its position in the batch. *)
+type lobby_polled =
+  | In_lobby of {
+      me : int;
+      code : int option;
+      first_state : server_state option;
+    }
+  | Rejected of string
+
+let rec lobby ~io conn ~me ~code =
+  draw_backdrop ~io;
+  if Input.is_pressed ~io `escape then raise Exit;
+  (* Drain the queue *before* looking at the connection status: the server
+     closes the socket right after a [Full]/[Unknown_game] rejection, so by the
+     time we run the status may already be [Closed] — the queued rejection is
+     the explicit reason and must win over a generic "connection was closed". *)
+  let polled =
+    List.fold_left
+      begin fun acc msg ->
+        match to_client_of_yojson (Yojson.Safe.from_string msg) with
+        | Error _ | (exception _) ->
+            Rejected "received an unreadable message from the server"
+        | Ok m ->
+            begin match (acc, m) with
+            | Rejected _, _ -> acc
+            | In_lobby l, Welcome w ->
+                In_lobby { l with me = w.player; code = Some w.code }
+            | In_lobby l, State s -> In_lobby { l with first_state = Some s }
+            | In_lobby _, Waiting -> acc
+            | In_lobby _, Full -> Rejected "this game is already full"
+            | In_lobby _, Unknown_game ->
+                Rejected
+                  "there is no game with this code: check for a typo, or ask \
+                   the creator whether they left (a game whose players all \
+                   leave is deleted)"
+            end
+      end
+      (In_lobby { me; code; first_state = None })
+      (Net.poll conn)
+  in
+  match polled with
+  | Rejected msg -> `Lost msg
+  | In_lobby { me; code = Some code; first_state = Some s } ->
+      `Play (me, code, s)
+  | In_lobby { me; code; first_state = _ } -> (
+      match Net.status conn with
+      | Net.Error msg -> `Lost msg
+      | Net.Closed -> `Lost "the connection was closed"
+      | Net.Connecting | Net.Connected ->
+          let dots =
+            String.make (1 + (int_of_float (clock ~io *. 2.0) mod 3)) '.'
+          in
+          (match code with
+          | None ->
+              Text.draw ~io ~size:30 ~color:Color.white
+                ~at:(Point.v 380.0 360.0) ("Joining" ^ dots)
+          | Some code ->
+              Text.draw ~io ~size:40 ~color:Color.white
+                ~at:(Point.v 330.0 340.0)
+                (Printf.sprintf "Game code: %04d" code);
+              Text.draw ~io ~size:30 ~color:Color.white
+                ~at:(Point.v 300.0 400.0)
+                ("Waiting for another player" ^ dots));
+          next_frame ~io;
+          lobby ~io conn ~me ~code)
+
+(* Drive one multiplayer session: connect, send the create/join request, wait
+   in the lobby for an opponent, play, and on any failure offer to retry
+   (re-sending the same request) or go back to the menu. If the opponent leaves
+   mid-game we fall back to the lobby and wait for a new one. Returns once the
+   player asks to go back to the menu. *)
+let rec play_multiplayer ~io ~address ~hello : [ `Menu ] =
+  (* A bare host:port means plain ws; an explicit scheme (ws:// or wss://) is
+     kept as-is so the same menu works from an https page, where only wss is
+     allowed. *)
+  let url =
+    if
+      String.starts_with ~prefix:"ws://" address
+      || String.starts_with ~prefix:"wss://" address
+    then address
+    else "ws://" ^ address
+  in
+  let conn = Net.connect url in
+  let on_failure msg =
+    Net.close conn;
+    match error_screen ~io msg with
+    | `Retry -> play_multiplayer ~io ~address ~hello
+    | `Menu -> `Menu
+  in
+  match connecting_screen ~io conn with
+  | `Failed msg -> on_failure msg
+  | `Connected ->
+      Net.send conn (Yojson.Safe.to_string (hello_to_yojson hello));
+      let rec session ~me ~code =
+        match lobby ~io conn ~me ~code with
+        | `Lost msg -> on_failure msg
+        | `Play (me, code, (s : server_state)) -> (
+            match
+              multiplayer ~io conn ~me ~code ~server_frame:s.frame ~seq:0
+                ~pending:[]
+                ~opponent_input:(if me = 1 then s.inputs_2 else s.inputs_1)
+                s.state
+            with
+            | `Lost msg -> on_failure msg
+            | `Waiting -> session ~me ~code:(Some code))
+      in
+      session ~me:0 ~code:None
+
+let rec app ~io address code =
+  match menu ~io address code None with
+  | `Single -> singleplayer ~io initial_state
+  | `Multi (address, code, hello) -> (
+      match play_multiplayer ~io ~address ~hello with
+      | `Menu -> app ~io address code)
+
+let main ~io =
+  Window.set_size ~io (Size.v 1010. 1020.);
+  app ~io default_server_address ""
+
+let () = Gamelle.run_no_loop main

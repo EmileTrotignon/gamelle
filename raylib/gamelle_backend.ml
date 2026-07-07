@@ -49,3 +49,5 @@ let run state update =
     Raylib.close_audio_device ()
   end;
   Raylib.close_window ()
+
+module Net = Net

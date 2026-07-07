@@ -8,6 +8,13 @@ module Routine = Routine
 module View = View
 module Transform = Gamelle_common.Transform
 module Input = Event
+
+module Event_snapshot = struct
+  include Gamelle_common.Event_snapshot
+
+  let of_io ~(io : Gamelle_backend.io) = !(io.Gamelle_common.event)
+end
+
 module Bitmap = Bitmap_
 include Draw_geometry
 
@@ -16,6 +23,7 @@ let clock = Gamelle_backend.clock
 
 module Sound = Gamelle_backend.Sound
 module Window = Window_
+module Net = Gamelle_backend.Net
 
 type io = Gamelle_backend.io
 

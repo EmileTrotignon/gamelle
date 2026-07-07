@@ -1,4 +1,4 @@
-type t = { center : Point.t; radius : float }
+type t = { center : Point.t; radius : float } [@@deriving yojson]
 
 let v center radius =
   if radius < 0.0 then invalid_arg "Circle.v: negative radius";

@@ -1,4 +1,4 @@
-type t
+type t [@@deriving yojson]
 
 val v : Point.t -> float -> t
 val center : t -> Point.t

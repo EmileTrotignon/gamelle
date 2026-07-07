@@ -1,0 +1,9 @@
+(lang dune 3.7)
+
+(name volley_multi)
+
+(package
+  (name volley_multi)
+  (synopsis "volley_multi")
+  (depends
+    gamelle))

@@ -10,6 +10,7 @@ module Sound = Sound
 module Transform = Gamelle_common.Transform
 include Draw
 include Jsoo
+module Net = Net
 
 let prev_now = ref 0.0
 let now = ref 0.0

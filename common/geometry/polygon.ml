@@ -1,6 +1,6 @@
 open Xy
 
-type t = Point.t list
+type t = Point.t list [@@deriving yojson]
 
 let v li = li
 let points p = p

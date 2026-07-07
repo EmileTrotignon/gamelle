@@ -18,6 +18,8 @@ depends: [
   "result" {>= "1.5"}
   "crunch" {>= "3.3.1"}
   "ppx_blob" {>= "0.7.2"}
+  "yojson" {>= "2.0.0"}
+  "ppx_deriving_yojson" {>= "3.7.0"}
   "uuseg" {>= "15.1.0"}
   "otfm" {>= "0.4.0"}
   "imagelib" {>= "20221222"}
@@ -32,6 +34,12 @@ depopts: [
   "tsdl-ttf" {>= "0.6"}
   "conf-sdl2-gfx"
   "raylib" {>= "2.0.0"}
+  "ctypes-foreign" {>= "0.21.1"}
+  "lwt" {>= "5.9.0"}
+  "uri" {>= "4.0.0"}
+  "conduit-lwt-unix" {>= "7.0.0"}
+  "tls-lwt" {>= "1.0.0"}
+  "websocket-lwt-unix" {>= "2.17"}
 ]
 build: [
   ["dune" "subst"] {dev}

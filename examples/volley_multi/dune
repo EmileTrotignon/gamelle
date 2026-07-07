@@ -1,0 +1,56 @@
+(env
+ (dev
+  (flags
+   (:standard -warn-error -A))))
+
+(executable
+ (public_name volley_multi)
+ (name volley_multi_bin)
+ (modules volley_multi_bin)
+ (libraries volley_multi gamelle.raylib))
+
+(rule
+ (target volley_multi_bin.ml)
+ (action
+  (with-stdout-to
+   volley_multi_bin.ml
+   (run echo "include Volley_multi"))))
+
+(executable
+ (name volley_multi_sdl)
+ (modules volley_multi_sdl)
+ (optional)
+ (libraries volley_multi gamelle.sdl))
+
+(rule
+ (target volley_multi_sdl.ml)
+ (action
+  (with-stdout-to
+   volley_multi_sdl.ml
+   (run echo "include Volley_multi"))))
+
+(executable
+ (name volley_multi_js)
+ (modules volley_multi_js)
+ (modes js)
+ (flags)
+ (libraries volley_multi gamelle.jsoo))
+
+(rule
+ (target volley_multi_js.ml)
+ (action
+  (with-stdout-to
+   volley_multi_js.ml
+   (run echo "include Volley_multi"))))
+
+(rule
+ (target volley_multi.html)
+ (deps volley_multi.template.html volley_multi_js.bc.js)
+ (action
+  (with-stdout-to
+   volley_multi.html
+   (run
+    %{bin:gamelle}
+    html
+    --template=volley_multi.template.html
+    --script=volley_multi_js.bc.js))))

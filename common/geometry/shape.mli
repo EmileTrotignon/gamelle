@@ -1,4 +1,5 @@
 type t = Segment of Segment.t | Circle of Circle.t | Polygon of Polygon.t
+[@@deriving yojson]
 
 val circle : Circle.t -> t
 val segment : Segment.t -> t
