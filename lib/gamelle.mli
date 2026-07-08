@@ -263,6 +263,9 @@ module Vec : sig
   (** [polar norm angle] is the vector with magnitude [norm] and angle [angle]
       (in radians). *)
 
+  val angle : t -> float
+  (** [angle v] is the angle of the vector [v] *)
+
   val equal : t -> t -> bool
   (** [equal a b] is [true] if [a] and [b] are approximately equal. *)
 

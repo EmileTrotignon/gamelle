@@ -24,6 +24,7 @@ let translate p vec = p + vec
 let lerp t a b = a + (t * (b - a))
 let norm2 { x; y } = (x *. x) +. (y *. y)
 let norm t = sqrt (norm2 t)
+let angle { x; y } = atan2 y x
 let unit t = 1.0 /. norm t * t
 let ortho { x; y } = { x = -.y; y = x }
 let dot a b = (a.x *. b.x) +. (a.y *. b.y)
