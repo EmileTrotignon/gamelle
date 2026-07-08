@@ -21,6 +21,11 @@ let show_cursor ~io:_ b =
   let& _ = Sdl.show_cursor b in
   ()
 
+(* Not implemented on the SDL backend yet: [Input.mouse_delta] stays zero and
+   the cursor is not captured. *)
+let capture_mouse ~io:_ _ = ()
+let is_mouse_captured ~io:_ = false
+
 let set_fullscreen ~io fullscreen =
   let flags =
     if fullscreen then Sdl.Window.fullscreen_desktop else Sdl.Window.windowed

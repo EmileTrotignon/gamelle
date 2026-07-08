@@ -12,6 +12,7 @@ type key = Events_backend.key [@@deriving yojson]
 module Strings = Events_backend.Strings
 
 let mouse_pos (t : t) = Events_backend.mouse_pos t
+let mouse_delta (t : t) = Events_backend.mouse_delta t
 let is_pressed (t : t) k = Events_backend.is_pressed t k
 let is_up (t : t) k = Events_backend.is_up t k
 let is_down (t : t) k = Events_backend.is_down t k

@@ -34,6 +34,9 @@ module Window = struct
     let canvas = io.backend.canvas in
     Size.v (float (Canvas.w canvas)) (float (Canvas.h canvas))
 
+  let capture_mouse ~io:_ status = Events_js.set_capture status
+  let is_mouse_captured ~io:_ = Events_js.is_locked ()
+
   let show_cursor ~io status =
     let canvas = io.backend.canvas in
     let el = Canvas.to_el canvas in
@@ -65,7 +68,7 @@ let finalize_frame ~io =
 
 let run ~canvas state update =
   let open Jsoo in
-  Events_js.attach ~target:(El.as_target canvas);
+  Events_js.attach ~canvas;
   let canvas = Canvas.of_el canvas in
   Canvas.set_w canvas (640 * 2);
   Canvas.set_h canvas (480 * 2);
@@ -92,7 +95,7 @@ let run ~canvas state update =
     incr clock_ref;
     let state = update ~io state in
     finalize_frame ~io;
-    Events_js.current := reset_wheel !Events_js.current;
+    Events_js.current := reset_mouse_delta (reset_wheel !Events_js.current);
     animate state
   in
   animate state

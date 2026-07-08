@@ -120,7 +120,8 @@ let fill_poly ~io ?color poly =
 
 (* The native [Raylib.draw_rectangle] is axis-aligned and would ignore the view
    rotation, so fill the box as a polygon of its (projected) corners instead. *)
-let fill_rect ~io ?color rect = fill_poly ~io ?color (Polygon.v (Box.corners rect))
+let fill_rect ~io ?color rect =
+  fill_poly ~io ?color (Polygon.v (Box.corners rect))
 
 (* --- SDF circle shaders --- *)
 
@@ -636,4 +637,5 @@ let draw_poly ~io ?color poly =
     List.iter (fun (a, b) -> aa_segment color a b) segments
   end
 
-let draw_rect ~io ?color rect = draw_poly ~io ?color (Polygon.v (Box.corners rect))
+let draw_rect ~io ?color rect =
+  draw_poly ~io ?color (Polygon.v (Box.corners rect))

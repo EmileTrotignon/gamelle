@@ -18,6 +18,19 @@ let size ~io:_ =
 let show_cursor ~io:_ show =
   if show then Raylib.show_cursor () else Raylib.hide_cursor ()
 
+(* Tracked here rather than queried from raylib, because [is_cursor_hidden]
+   cannot distinguish a captured cursor from one hidden by [show_cursor]. *)
+let captured = ref false
+
+let capture_mouse ~io:_ capture =
+  if capture <> !captured then begin
+    captured := capture;
+    if capture then Raylib.disable_cursor () else Raylib.enable_cursor ()
+  end
+
+(* Capture is immediate on raylib, so this is just the requested state. *)
+let is_mouse_captured ~io:_ = !captured
+
 let is_fullscreen () =
   Raylib.is_window_state Raylib.ConfigFlags.borderless_windowed_mode
 

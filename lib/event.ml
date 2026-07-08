@@ -26,6 +26,7 @@ let is_up ~io k = handle_clip_events ~io @@ Events_backend.is_up !(io.event) k
 let is_down ~io k =
   handle_clip_events ~io @@ Events_backend.is_down !(io.event) k
 
+let mouse_delta ~io = Events_backend.mouse_delta !(io.event)
 let wheel_delta ~io = Events_backend.wheel_delta !(io.event)
 let pressed_chars ~io = !(io.event).pressed_chars
 let down_chars ~io = !(io.event).down_chars

@@ -4,6 +4,27 @@ open Gamelle_common.Events_backend
 let previous = ref default
 let current = ref default
 
+(* Pointer lock (relative mouse mode). Browsers only grant it from inside a
+   user gesture handler, so [set_capture true] both tries immediately (it can
+   succeed if the current frame was reached with a recent-enough gesture) and
+   records the intent so the mousedown listener below can retry. The browser
+   can also drop the lock at any time (Escape); the next click then re-acquires
+   it. *)
+let capture = ref false
+let capture_el : El.t option ref = ref None
+let is_locked () = Option.is_some (Document.pointer_lock_element G.document)
+
+let request_lock () =
+  match !capture_el with
+  | Some el when !capture && not (is_locked ()) ->
+      ignore (El.request_pointer_lock el)
+  | _ -> ()
+
+let set_capture status =
+  capture := status;
+  if status then request_lock ()
+  else if is_locked () then ignore (Document.exit_pointer_lock G.document)
+
 let new_frame () =
   current := update_updown !previous !current;
   previous := !current
@@ -137,7 +158,15 @@ let update_mouse t e =
       { t with keypressed = insert `click_right t.keypressed }
     else { t with keypressed = remove `click_right t.keypressed }
   in
-  { t with mouse_x = x; mouse_y = y }
+  (* Movements accumulate over the mouse events of the current frame; the
+     per-frame delta is reset by the run loop (see [reset_mouse_delta]). *)
+  {
+    t with
+    mouse_x = x;
+    mouse_y = y;
+    mouse_dx = t.mouse_dx +. Ev.Mouse.movement_x e;
+    mouse_dy = t.mouse_dy +. Ev.Mouse.movement_y e;
+  }
 
 let do_update_mouse e = current := update_mouse !current (Ev.as_type e)
 
@@ -147,7 +176,15 @@ let update_wheel t e =
 
 let do_update_wheel e = current := update_wheel !current (Ev.as_type e)
 
-let attach ~target =
+let attach ~canvas =
+  capture_el := Some canvas;
+  let target = El.as_target canvas in
+  let _ =
+    Ev.listen
+      (Ev.Type.create (Jstr.of_string "mousedown"))
+      (fun _ -> request_lock ())
+      target
+  in
   let _ =
     Ev.listen
       (Ev.Type.create (Jstr.of_string "keyup"))

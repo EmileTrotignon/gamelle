@@ -20,7 +20,11 @@ let transform ~io =
   let dx, dy = Vec.to_tuple view.translate in
   C.translate io.backend.ctx ~x:dx ~y:dy;
   C.rotate io.backend.ctx view.rotate;
-  C.scale io.backend.ctx ~sx:view.scale ~sy:view.scale
+  C.scale io.backend.ctx ~sx:view.scale ~sy:view.scale;
+  (* Strokes are drawn under the scaled transform, which would also scale their
+     width. Compensate so outlines stay 1 pixel wide on screen, like on the
+     other backends. *)
+  C.set_line_width io.backend.ctx (1.0 /. view.scale)
 
 let draw ~io bmp p =
   transform ~io;
@@ -51,11 +55,12 @@ let draw_line ~io ?color segment =
   let x1, y1 = Vec.to_tuple p1 in
   set_color ~io color;
   let ctx = io.backend.ctx in
-  Clip.draw_clip ~io ctx (fun () ->
+  Clip.draw_clip ~io ctx begin fun () ->
       let path = C.Path.create () in
       C.Path.move_to path ~x:x0 ~y:y0;
       C.Path.line_to path ~x:x1 ~y:y1;
-      C.stroke io.backend.ctx path)
+      C.stroke io.backend.ctx path
+    end
 
 let path_poly pts =
   let path = C.Path.create () in

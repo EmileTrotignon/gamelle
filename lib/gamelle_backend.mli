@@ -88,6 +88,17 @@ end
 
 module Window : sig
   val show_cursor : io:io -> bool -> unit
+
+  (* Relative mouse mode: hide the cursor and lock it to the window, so mouse
+     motion is unbounded and reported through [Events_backend.mouse_delta].
+     On jsoo the capture may be deferred to the next user gesture (pointer
+     lock); not implemented on sdl, where it is a no-op. *)
+  val capture_mouse : io:io -> bool -> unit
+
+  (* Whether the mouse is effectively captured right now (on jsoo this can lag
+     behind [capture_mouse], or become false again when the browser drops the
+     lock). *)
+  val is_mouse_captured : io:io -> bool
   val set_fullscreen : io:io -> bool -> unit
   val get_fullscreen : io:io -> bool
   val size : io:io -> Size.t

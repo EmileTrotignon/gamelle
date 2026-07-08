@@ -254,6 +254,9 @@ let update clock previous =
   let pos = Raylib.get_mouse_position () in
   let mouse_x = Raylib.Vector2.x pos in
   let mouse_y = Raylib.Vector2.y pos in
+  let delta = Raylib.get_mouse_delta () in
+  let mouse_dx = Raylib.Vector2.x delta in
+  let mouse_dy = Raylib.Vector2.y delta in
   let pressed_chars = collect_chars Strings.empty in
   let keypressed = build_keypressed () in
   let keypressed =
@@ -271,6 +274,8 @@ let update clock previous =
       clock;
       mouse_x;
       mouse_y;
+      mouse_dx;
+      mouse_dy;
       wheel_delta;
       pressed_chars;
       keypressed;

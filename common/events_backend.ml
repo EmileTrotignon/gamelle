@@ -93,6 +93,8 @@ type t = {
   keypressed : Keys.t;
   mouse_x : float;
   mouse_y : float;
+  mouse_dx : float;
+  mouse_dy : float;
   wheel_delta : float;
   pressed_chars : Strings.t;
   down_chars : Strings.t;
@@ -102,6 +104,7 @@ type t = {
 [@@deriving yojson]
 
 let mouse_pos t = Point.v t.mouse_x t.mouse_y
+let mouse_delta t = Vec.v t.mouse_dx t.mouse_dy
 
 let default =
   {
@@ -110,6 +113,8 @@ let default =
     keypressed = Keys.empty;
     mouse_x = 0.0;
     mouse_y = 0.0;
+    mouse_dx = 0.0;
+    mouse_dy = 0.0;
     wheel_delta = 0.;
     pressed_chars = Strings.empty;
     down_chars = Strings.empty;
@@ -140,3 +145,5 @@ let wheel_delta t = t.wheel_delta
 
 let reset_wheel t =
   { t with keypressed = remove `wheel t.keypressed; wheel_delta = 0. }
+
+let reset_mouse_delta t = { t with mouse_dx = 0.0; mouse_dy = 0.0 }

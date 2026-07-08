@@ -1028,6 +1028,14 @@ module Input : sig
   val mouse_pos : io:io -> Point.t
   (** [mouse_pos ~io] returns the coordinates of the player mouse. *)
 
+  val mouse_delta : io:io -> Vec.t
+  (** [mouse_delta ~io] returns the mouse movement since the previous frame, in
+      raw screen pixels (no view transform applied). Unlike {!mouse_pos}, it
+      stays meaningful when the mouse is captured with {!Window.capture_mouse}:
+      the movement is unbounded, as in a first-person game.
+
+      Not implemented on the sdl backend yet, where it is always zero. *)
+
   val wheel_delta : io:io -> float
   (** [wheel_delta ~io] returns the amount of change of the mouse wheel. *)
 end
@@ -1073,6 +1081,10 @@ module Event_snapshot : sig
   val mouse_pos : t -> Point.t
   (** [mouse_pos e] returns the raw mouse coordinates carried by the event [e].
   *)
+
+  val mouse_delta : t -> Vec.t
+  (** [mouse_delta e] returns the mouse movement carried by the event [e]. See
+      {!Input.mouse_delta}. *)
 
   val wheel_delta : t -> float
   (** [wheel_delta e] returns the mouse wheel change carried by the event [e].
@@ -1447,6 +1459,25 @@ module Window : sig
   val show_cursor : io:io -> bool -> unit
   (** [show_cursor ~io visible] toggles the visibility of the operating system
       mouse cursor. *)
+
+  val capture_mouse : io:io -> bool -> unit
+  (** [capture_mouse ~io captured] toggles relative mouse mode: the cursor is
+      hidden and locked to the window, and mouse movement becomes unbounded, as
+      in a first-person game. While captured, read the movement with
+      {!Input.mouse_delta}; {!Input.mouse_pos} is no longer meaningful.
+
+      On html5, browsers only grant the underlying pointer lock from a user
+      gesture, so the capture may only take effect at the player's next click on
+      the game; they can also always break it with Escape (the next click
+      re-captures). Not implemented on the sdl backend yet, where it is a no-op.
+  *)
+
+  val is_mouse_captured : io:io -> bool
+  (** [is_mouse_captured ~io] returns [true] if the mouse is effectively
+      captured right now. Since {!capture_mouse} may not take effect immediately
+      (or may be broken by the player at any time on html5), poll this to know
+      the actual state — e.g. to pause the game or show a "click to play"
+      message while uncaptured. *)
 
   val set_fullscreen : io:io -> bool -> unit
   (** [set_fullscreen ~io fullscreen] toggles fullscreen mode. *)
