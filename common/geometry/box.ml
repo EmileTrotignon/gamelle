@@ -15,6 +15,7 @@ let top_left t = t.tl
 let top_right t = Point.(t.tl + v (Size.width t.size) 0.0)
 let bottom_left t = Point.(t.tl + v 0.0 (Size.height t.size))
 let bottom_right t = Point.(t.tl + t.size)
+let corners t = [ top_left t; top_right t; bottom_right t; bottom_left t ]
 let top box = Segment.v (top_left box) (top_right box)
 let left box = Segment.v (top_left box) (bottom_left box)
 let right box = Segment.v (top_right box) (bottom_right box)

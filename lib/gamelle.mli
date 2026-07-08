@@ -430,6 +430,10 @@ module Box : sig
   val bottom_right : t -> Point.t
   (** [bottom_right b] returns the bottom-right point of the box [b]. *)
 
+  val corners : t -> Point.t list
+  (** [corners b] returns the four corners of the box [b], in clockwise order
+      starting from the top-left. *)
+
   (** {3 Coordinates} *)
 
   val x_left : t -> float
