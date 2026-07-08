@@ -181,6 +181,10 @@ module Point : sig
   (** [polar norm angle] is the point at polar coordinates with magnitude [norm]
       and angle [angle] (in radians). *)
 
+  val rotate_around : center:t -> float -> t -> t
+  (** [rotate_around ~center angle pt] rotates the point [pt] by [angle] (in
+      radians) around the point [center]. *)
+
   val to_tuple : t -> float * float
   (** [to_tuple pt] is [(x pt, y pt)]. *)
 
@@ -351,6 +355,20 @@ module Segment : sig
   val intersect : t -> t -> bool
   (** [intersect a b] returns [true] if segment [a] intersects segment [b],
       [false] otherwise. *)
+
+  val intersection : t -> t -> Point.t option
+  (** [intersection a b] returns the intersection point of the segments [a] and
+      [b], if any. If the segments are collinear and overlap, the middle of the
+      shared part is returned. *)
+
+  val ray_intersection : Point.t -> Vec.t -> t -> Point.t option
+  (** [ray_intersection origin dir s] returns the point where the unbounded ray
+      starting at [origin] with direction [dir] first hits the segment [s], if
+      it does. If the ray is collinear with [s] and overlaps it, the overlapping
+      point nearest to [origin] is returned. *)
+
+  val map_points : (Point.t -> Point.t) -> t -> t
+  (** [map_points f s] applies [f] to both end-points of the segment [s]. *)
 
   (** {2 Serialization} *)
 
@@ -652,6 +670,13 @@ module Polygon : sig
 
   val translate : Vec.t -> t -> t
   (** [translate v p] translates the polygon [p] by vector [v]. *)
+
+  val rotate : ?center:Point.t -> float -> t -> t
+  (** [rotate ?center angle p] rotates the polygon [p] by [angle] (in radians)
+      around [center], which defaults to the polygon's center of mass. *)
+
+  val map_points : (Point.t -> Point.t) -> t -> t
+  (** [map_points f p] applies [f] to every vertex of the polygon [p]. *)
 
   (** {2 Serialization} *)
 

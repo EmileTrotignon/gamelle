@@ -46,12 +46,9 @@ module Vec = struct
         draw_line ~io ?color (Geometry.Segment.v at stop);
         let stop1 = stop + (10. * unit vec) in
         let angle = 90. /. pi in
-        let cos = cos angle and sin = sin angle in
-        let arrow = Point.rotate_around ~angle:(cos, sin) ~center:stop stop1 in
+        let arrow = Point.rotate_around ~center:stop angle stop1 in
         draw_line ~io ?color (Geometry.Segment.v stop arrow);
-        let arrow =
-          Point.rotate_around ~angle:(cos, -.sin) ~center:stop stop1
-        in
+        let arrow = Point.rotate_around ~center:stop (-.angle) stop1 in
         draw_line ~io ?color (Geometry.Segment.v stop arrow))
 end
 

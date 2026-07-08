@@ -46,6 +46,10 @@ let segments pts =
 let translate v poly = List.map (Vec.( + ) v) poly
 let map_points f poly = List.map f poly
 
+let rotate ?center:opt_center angle poly =
+  let center = match opt_center with Some c -> c | None -> center poly in
+  map_points (rotate_around ~center angle) poly
+
 let bounding_box poly =
   let x_min, x_max, y_min, y_max =
     List.fold_left

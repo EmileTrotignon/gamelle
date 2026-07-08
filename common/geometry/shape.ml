@@ -27,7 +27,7 @@ let ( * ) = ( *. )
 let ( / ) = ( /. )
 
 let rotate_around ~angle ~center shape =
-  let rot = Vec.rotate_around ~angle ~center in
+  let rot = Vec.rotate_around ~center angle in
   match shape with
   | Circle c -> Circle (Circle.map_center rot c)
   | Segment s -> Segment (Segment.map_points rot s)
@@ -47,7 +47,7 @@ let rotate ?center:opt_center angle shape =
   let center =
     match opt_center with Some center -> center | None -> center shape
   in
-  rotate_around ~angle:(cos angle, sin angle) ~center shape
+  rotate_around ~angle ~center shape
 
 let nearest_point_segment pt s =
   let p0, p1 = Segment.to_tuple s in

@@ -30,7 +30,8 @@ let ortho { x; y } = { x = -.y; y = x }
 let dot a b = (a.x *. b.x) +. (a.y *. b.y)
 let cross a b = (a.x *. b.y) -. (a.y *. b.x)
 
-let rotate_around ~angle:(cos, sin) ~center pt =
+let rotate_around ~center angle pt =
+  let cos = cos angle and sin = sin angle in
   let at = pt - center in
   let x, y = (at.x, at.y) in
   let pt = v ((x *. cos) -. (y *. sin)) ((y *. cos) +. (x *. sin)) in
