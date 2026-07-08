@@ -1,8 +1,8 @@
 open Gamelle
 
-let w = 800.
+let w = 1000.
 let h = 600.
-let cell_w = w /. 3.
+let cell_w = w /. 4.
 let cell_h = h /. 2.
 
 let cell col row =
@@ -89,6 +89,53 @@ let () =
   Text.draw ~io ~color:Color.crimson ~size:20
     ~at:(Point.v (Box.x_left b +. 10.) (Box.y_bottom b -. 35.))
     "Hello Gamelle!";
+
+  (* (3,0) Polygon fill with a transparent color: any double-blended triangle
+     or seam in the backend's polygon filling shows up against the flat
+     background. *)
+  let b = cell 3 0 in
+  label ~io b "Alpha fill";
+  let cx, cy = (Box.x_middle b, Box.y_middle b) in
+  let poly =
+    Polygon.v
+      [
+        Point.v (cx -. 10.) (cy -. 100.);
+        Point.v (cx +. 30.) (cy -. 100.);
+        Point.v (cx +. 30.) cy;
+        Point.v (cx +. 90.) (cy +. 80.);
+        Point.v (cx -. 90.) (cy +. 80.);
+      ]
+  in
+  (* alpha 0.75: the blend over the (40,40,40) background is 201.03 / 10.03,
+     far from a rounding tie, so both backends produce the same 8-bit color
+     (a 0.5 alpha blends to 147.5, which the backends round differently). *)
+  Polygon.fill ~io ~color:(Color.rgb ~alpha:0.75 255 0 0) poly;
+
+  (* (3,1) Clip under rotation. The view is rotated around the cell center;
+     the filled circle sits strictly inside the (world-space) clip box, so it
+     must be fully visible, while the distant box must be clipped away
+     entirely. Content stays away from the clip border because the raylib
+     backend clips to the bounding box of the rotated clip region (its
+     scissor is axis-aligned), unlike the browser's exact clip path. *)
+  let b = cell 3 1 in
+  label ~io b "Clip + rotate";
+  let angle = 0.5 in
+  let center = Box.center b in
+  let rot_io =
+    let c' = Point.rotate_around ~center:Point.zero (-.angle) center in
+    let d = Vec.(c' - center) in
+    io |> View.rotate angle |> View.translate d
+  in
+  let clip_box =
+    Box.v_center
+      (Point.v (Box.x_middle b) (Box.y_middle b +. 20.))
+      (Size.v 160. 160.)
+  in
+  let rot_io = View.clip clip_box rot_io in
+  Circle.fill ~io:rot_io ~color:Color.turquoise
+    (Circle.v (Box.center clip_box) 70.);
+  Box.fill ~io:rot_io ~color:Color.red
+    (Box.v (Point.v (-1000.) (-1000.)) (Size.v 500. 500.));
 
   (* Arc + rounded box overlaid on the segment cell for a quick visual check. *)
   let b = cell 0 0 in

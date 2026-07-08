@@ -39,6 +39,10 @@ let project ~io p =
   let v = Transform.project io.view p in
   Vec.to_tuple v
 
+(* The scissor is axis-aligned, so when the view is rotated we clip to the
+   bounding box of the rotated clip region: conservative (content just outside
+   the clip's corners can leak in), never cutting content that should be
+   visible. *)
 let with_scissor ~io f =
   match io.clip with
   | None -> f ()

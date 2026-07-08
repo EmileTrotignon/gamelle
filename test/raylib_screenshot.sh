@@ -31,7 +31,11 @@ SERVERNUM="$4"
 shift 4
 
 INIT=640 # gamelle.raylib's initial window size (raylib/gamelle_backend.ml).
-SCREEN=1024
+# The screen must fit the window at its centred-INIT offset: OFF + max(W, H)
+# <= SCREEN, i.e. SCREEN >= 2 * max(W, H) - INIT. Keep at least 1024.
+MAX=$((W > H ? W : H))
+SCREEN=$((2 * MAX - INIT))
+[ "$SCREEN" -lt 1024 ] && SCREEN=1024
 OFF=$(((SCREEN - INIT) / 2))
 
 FBDIR="$(mktemp -d)"

@@ -29,7 +29,8 @@ let inv_project { scale; translate = tr; rotate } p =
   let c, s = (scale *. cos rotate, scale *. sin rotate) in
   Point.v ((c *. x) -. (s *. y)) ((s *. x) +. (c *. y))
 
+(* The screen-space bounding box of the projected box: under rotation the
+   projected corners are no longer axis-aligned, so this is the smallest
+   axis-aligned box containing all four of them. *)
 let project_box t box =
-  let top_left = project t (Box.top_left box) in
-  let size = Size.(t.scale * Box.size box) in
-  Box.v top_left size
+  Polygon.bounding_box (Polygon.v (List.map (project t) (Box.corners box)))

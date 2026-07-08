@@ -11,6 +11,8 @@ which drift in and out per environment. Both backends must agree on that set:
 #FF7F50FF  Box.fill (touch TR)  Color.coral
 #4B0082FF  Box.fill (touch BL)  Color.indigo
 #EE82EEFF  Box.fill (touch BR)  Color.violet
+#C90A0AFF  Polygon.fill alpha   Color.(rgb ~alpha:0.75 255 0 0) over the background
+#40E0D0FF  Circle.fill clipped  Color.turquoise
 
   $ if command -v magick > /dev/null; then IM=magick; else IM=convert; fi
   $ $IM jsoo.png txt:- | awk 'NR>1{print $3}' | sort | uniq -c | awk '$1 >= 2000 {print $2}' | sort > jsoo_colors
@@ -19,7 +21,9 @@ which drift in and out per environment. Both backends must agree on that set:
   #0000FFFF
   #008080FF
   #282828FF
+  #40E0D0FF
   #4B0082FF
+  #C90A0AFF
   #EE82EEFF
   #FF0000FF
   #FF00FFFF
