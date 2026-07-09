@@ -145,8 +145,26 @@ let update ~status t e =
 
 let do_update ~status e = current := update ~status !current (Ev.as_type e)
 
+(* Mouse events report CSS pixels relative to the canvas element; convert to
+   the game's logical coordinates. The bitmap is displayed letterboxed inside
+   the element (object-fit: contain, see Window.set_size): uniformly scaled by
+   [fit] and centered, so the mapping is a scale plus the letterbox offset. *)
+let element_to_logical () =
+  match !capture_el with
+  | None -> (1.0, 0.0, 0.0)
+  | Some el ->
+      let lw, lh = !Jsoo.logical_size in
+      let lw = float lw and lh = float lh in
+      let cw = El.inner_w el and ch = El.inner_h el in
+      if cw <= 0. || ch <= 0. then (1.0, 0.0, 0.0)
+      else
+        let fit = Float.min (cw /. lw) (ch /. lh) in
+        (fit, 0.5 *. (cw -. (fit *. lw)), 0.5 *. (ch -. (fit *. lh)))
+
 let update_mouse t e =
-  let x, y = (Ev.Mouse.offset_x e, Ev.Mouse.offset_y e) in
+  let fit, ox, oy = element_to_logical () in
+  let x = (Ev.Mouse.offset_x e -. ox) /. fit in
+  let y = (Ev.Mouse.offset_y e -. oy) /. fit in
   let buttons = Ev.Mouse.buttons e in
   let t =
     if buttons land 0x01 <> 0 then
@@ -164,8 +182,8 @@ let update_mouse t e =
     t with
     mouse_x = x;
     mouse_y = y;
-    mouse_dx = t.mouse_dx +. Ev.Mouse.movement_x e;
-    mouse_dy = t.mouse_dy +. Ev.Mouse.movement_y e;
+    mouse_dx = t.mouse_dx +. (Ev.Mouse.movement_x e /. fit);
+    mouse_dy = t.mouse_dy +. (Ev.Mouse.movement_y e /. fit);
   }
 
 let do_update_mouse e = current := update_mouse !current (Ev.as_type e)

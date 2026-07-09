@@ -17,14 +17,17 @@ let set_color ~io c =
 let transform ~io =
   let { view; _ } = io in
   C.reset_transform io.backend.ctx;
+  let dsx, dsy = !device_scale in
+  C.scale io.backend.ctx ~sx:dsx ~sy:dsy;
   let dx, dy = Vec.to_tuple view.translate in
   C.translate io.backend.ctx ~x:dx ~y:dy;
   C.rotate io.backend.ctx view.rotate;
   C.scale io.backend.ctx ~sx:view.scale ~sy:view.scale;
   (* Strokes are drawn under the scaled transform, which would also scale their
-     width. Compensate so outlines stay 1 pixel wide on screen, like on the
-     other backends. *)
-  C.set_line_width io.backend.ctx (1.0 /. view.scale)
+     width. Compensate so outlines stay 1 physical pixel wide on screen, like
+     on the other backends. *)
+  let ds = 0.5 *. (dsx +. dsy) in
+  C.set_line_width io.backend.ctx (1.0 /. (view.scale *. ds))
 
 let draw ~io bmp p =
   transform ~io;
