@@ -1860,6 +1860,10 @@ module Physics : sig
     val obj_list : t list -> t list app
     (** [obj_list bodies] registers a list of rigid bodies for collision
         resolution. *)
+
+    val obj_array : t array -> t array app
+    (** [obj_array bodies] registers an array of rigid bodies for collision
+        resolution. *)
   end
 
   (** {2 Teleportation} *)

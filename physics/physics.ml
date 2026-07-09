@@ -259,6 +259,7 @@ let fix_collisions t =
 type _ world_tree =
   | Leaf : t -> [ `leaf ] world_tree
   | LeafLi : t list -> [ `leaf_li ] world_tree
+  | LeafArr : t array -> [ `leaf_arr ] world_tree
   | Node : 'a world_tree * 'b world_tree -> [ `node of 'a * 'b ] world_tree
 
 let fix_collisions_world (type s) (world : s world_tree) : s world_tree =
@@ -272,6 +273,9 @@ let fix_collisions_world (type s) (world : s world_tree) : s world_tree =
     | LeafLi ts ->
         List.iteri (fun j t -> map := World.add (i + j) t !map) ts;
         i + List.length ts
+    | LeafArr ts ->
+        Array.iteri (fun j t -> map := World.add (i + j) t !map) ts;
+        i + Array.length ts
     | Node (a, b) ->
         let i = fill i a in
         fill i b
@@ -286,6 +290,10 @@ let fix_collisions_world (type s) (world : s world_tree) : s world_tree =
         let n = List.length ts in
         let fixed_ts = List.init n (fun j -> World.find (i + j) fixed_map) in
         (i + n, LeafLi fixed_ts)
+    | LeafArr ts ->
+        let n = Array.length ts in
+        let fixed_ts = Array.init n (fun j -> World.find (i + j) fixed_map) in
+        (i + n, LeafArr fixed_ts)
     | Node (a, b) ->
         let i, a = rebuild i a in
         let i, b = rebuild i b in
@@ -305,4 +313,5 @@ module CollisionOp = struct
 
   let obj a = T (Leaf a, fun (Leaf a) -> a)
   let obj_list a = T (LeafLi a, fun (LeafLi a) -> a)
+  let obj_array a = T (LeafArr a, fun (LeafArr a) -> a)
 end
