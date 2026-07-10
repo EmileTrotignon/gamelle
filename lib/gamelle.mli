@@ -958,77 +958,127 @@ end
 
 (** {1 Player inputs} *)
 
+type key =
+  [ `alt
+  | `alt_gr
+  | `arrow_down
+  | `arrow_left
+  | `arrow_right
+  | `arrow_up
+  | `backspace
+  | `caps_lock
+  | `click_left
+  | `click_right
+  | `control_left
+  | `control_right
+  | `delete
+  | `end_key
+  | `enter
+  | `escape
+  | `f1
+  | `f2
+  | `f3
+  | `f4
+  | `f5
+  | `f6
+  | `f7
+  | `f8
+  | `f9
+  | `f10
+  | `f11
+  | `f12
+  | `home
+  | `input_char of string
+  | `insert
+  | `context_menu
+  | `kp_0
+  | `kp_1
+  | `kp_2
+  | `kp_3
+  | `kp_4
+  | `kp_5
+  | `kp_6
+  | `kp_7
+  | `kp_8
+  | `kp_9
+  | `kp_add
+  | `kp_decimal
+  | `kp_divide
+  | `kp_enter
+  | `kp_equal
+  | `kp_multiply
+  | `kp_subtract
+  | `meta
+  | `meta_right
+  | `num_lock
+  | `page_down
+  | `page_up
+  | `pause
+  | `physical_char of char
+  | `print_screen
+  | `quit
+  | `scroll_lock
+  | `shift
+  | `space
+  | `tab
+  | `volume_down
+  | `volume_up
+  | `wheel
+  | `unknown_key ]
+(** The type of player inputs. *)
+
+module Input_snapshot : sig
+  (** Query a snapshot of a given frame's inputs.
+
+      This mirrors {!Input}, but reads from an explicit, serializable event
+      value instead of [~io]. It is meant for networking (e.g. a multiplayer
+      server): capture the current input on the client with {!of_io}, serialize
+      it with {!to_yojson}, send it over the wire, then query the reconstructed
+      value with {!of_yojson} on the other side.
+
+      Unlike {!Input}, there is no view transform or clipping applied here, so
+      {!mouse_pos} returns the raw coordinates carried by the event. *)
+
+  type t = Gamelle_common.Input_snapshot.t
+  (** A serializable snapshot of player inputs (mouse and keyboard). Equal to
+      the backend-free [Gamelle_common.Event_snapshot.t], so simulation code
+      built on [gamelle.physics]/[gamelle.common] alone (e.g. shared with a
+      headless server) can consume events captured here with {!of_io}. *)
+
+  val to_yojson : t -> Yojson.Safe.t
+  (** [to_yojson e] serializes the event [e] to JSON. *)
+
+  val of_yojson : Yojson.Safe.t -> (t, string) result
+  (** [of_yojson json] deserializes an event from JSON. *)
+
+  val is_pressed : t -> key -> bool
+  (** [is_pressed e key] returns [true] if [key] is held in the event [e]. *)
+
+  val is_down : t -> key -> bool
+  (** [is_down e key] returns [true] if [key] was just pressed in the event [e].
+  *)
+
+  val is_up : t -> key -> bool
+  (** [is_up e key] returns [true] if [key] was just released in the event [e].
+  *)
+
+  val mouse_pos : t -> Point.t
+  (** [mouse_pos e] returns the raw mouse coordinates carried by the event [e].
+  *)
+
+  val mouse_delta : t -> Vec.t
+  (** [mouse_delta e] returns the mouse movement carried by the event [e]. See
+      {!Input.mouse_delta}. *)
+
+  val wheel_delta : t -> float
+  (** [wheel_delta e] returns the mouse wheel change carried by the event [e].
+  *)
+end
+
 module Input : sig
   (** Player inputs: mouse and keyboard events. *)
 
-  type key =
-    [ `alt
-    | `alt_gr
-    | `arrow_down
-    | `arrow_left
-    | `arrow_right
-    | `arrow_up
-    | `backspace
-    | `caps_lock
-    | `click_left
-    | `click_right
-    | `control_left
-    | `control_right
-    | `delete
-    | `end_key
-    | `enter
-    | `escape
-    | `f1
-    | `f2
-    | `f3
-    | `f4
-    | `f5
-    | `f6
-    | `f7
-    | `f8
-    | `f9
-    | `f10
-    | `f11
-    | `f12
-    | `home
-    | `input_char of string
-    | `insert
-    | `context_menu
-    | `kp_0
-    | `kp_1
-    | `kp_2
-    | `kp_3
-    | `kp_4
-    | `kp_5
-    | `kp_6
-    | `kp_7
-    | `kp_8
-    | `kp_9
-    | `kp_add
-    | `kp_decimal
-    | `kp_divide
-    | `kp_enter
-    | `kp_equal
-    | `kp_multiply
-    | `kp_subtract
-    | `meta
-    | `meta_right
-    | `num_lock
-    | `page_down
-    | `page_up
-    | `pause
-    | `physical_char of char
-    | `print_screen
-    | `quit
-    | `scroll_lock
-    | `shift
-    | `space
-    | `tab
-    | `volume_down
-    | `volume_up
-    | `wheel
-    | `unknown_key ]
-  (** The type of player inputs. *)
+  val snapshot : io:io -> Input_snapshot.t
 
   val key_to_yojson : key -> Yojson.Safe.t
   (** [key_to_yojson k] serializes the key [k] to JSON. *)
@@ -1063,57 +1113,6 @@ module Input : sig
 
   val wheel_delta : io:io -> float
   (** [wheel_delta ~io] returns the amount of change of the mouse wheel. *)
-end
-
-module Event_snapshot : sig
-  (** Query a deserialized input event.
-
-      This mirrors {!Input}, but reads from an explicit, serializable event
-      value instead of [~io]. It is meant for networking (e.g. a multiplayer
-      server): capture the current input on the client with {!of_io}, serialize
-      it with {!to_yojson}, send it over the wire, then query the reconstructed
-      value with {!of_yojson} on the other side.
-
-      Unlike {!Input}, there is no view transform or clipping applied here, so
-      {!mouse_pos} returns the raw coordinates carried by the event. *)
-
-  type t = Gamelle_common.Event_snapshot.t
-  (** A serializable snapshot of player inputs (mouse and keyboard). Equal to
-      the backend-free [Gamelle_common.Event_snapshot.t], so simulation code
-      built on [gamelle.physics]/[gamelle.common] alone (e.g. shared with a
-      headless server) can consume events captured here with {!of_io}. *)
-
-  val of_io : io:io -> t
-  (** [of_io ~io] captures the current input event from [io]. *)
-
-  val to_yojson : t -> Yojson.Safe.t
-  (** [to_yojson e] serializes the event [e] to JSON. *)
-
-  val of_yojson : Yojson.Safe.t -> (t, string) result
-  (** [of_yojson json] deserializes an event from JSON. *)
-
-  val is_pressed : t -> Input.key -> bool
-  (** [is_pressed e key] returns [true] if [key] is held in the event [e]. *)
-
-  val is_down : t -> Input.key -> bool
-  (** [is_down e key] returns [true] if [key] was just pressed in the event [e].
-  *)
-
-  val is_up : t -> Input.key -> bool
-  (** [is_up e key] returns [true] if [key] was just released in the event [e].
-  *)
-
-  val mouse_pos : t -> Point.t
-  (** [mouse_pos e] returns the raw mouse coordinates carried by the event [e].
-  *)
-
-  val mouse_delta : t -> Vec.t
-  (** [mouse_delta e] returns the mouse movement carried by the event [e]. See
-      {!Input.mouse_delta}. *)
-
-  val wheel_delta : t -> float
-  (** [wheel_delta e] returns the mouse wheel change carried by the event [e].
-  *)
 end
 
 module Ui : sig

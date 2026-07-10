@@ -31,3 +31,4 @@ let wheel_delta ~io = Events_backend.wheel_delta !(io.event)
 let pressed_chars ~io = !(io.event).pressed_chars
 let down_chars ~io = !(io.event).down_chars
 let up_chars ~io = !(io.event).up_chars
+let snapshot ~(io : Gamelle_backend.io) = !(io.Gamelle_common.event)

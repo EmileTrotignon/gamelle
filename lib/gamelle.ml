@@ -7,14 +7,11 @@ module Physics = Physics
 module Routine = Routine
 module View = View
 module Transform = Gamelle_common.Transform
+
+type key = Event.key
+
 module Input = Event
-
-module Event_snapshot = struct
-  include Gamelle_common.Event_snapshot
-
-  let of_io ~(io : Gamelle_backend.io) = !(io.Gamelle_common.event)
-end
-
+module Input_snapshot = Gamelle_common.Input_snapshot
 module Bitmap = Bitmap_
 include Draw_geometry
 
