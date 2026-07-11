@@ -12,6 +12,8 @@ which drift in and out per environment. Both backends must agree on that set:
 #4B0082FF  Box.fill (touch BL)  Color.indigo
 #EE82EEFF  Box.fill (touch BR)  Color.violet
 #C90A0AFF  Polygon.fill alpha   Color.(rgb ~alpha:0.75 255 0 0) over the background
+#0AC90AFF  degenerate fan alpha Color.(rgb ~alpha:0.75 0 255 0) over the background
+(one flat color: any triangulation overlap would double-blend into extra colors)
 #40E0D0FF  Circle.fill clipped  Color.turquoise
 
   $ if command -v magick > /dev/null; then IM=magick; else IM=convert; fi
@@ -20,6 +22,7 @@ which drift in and out per environment. Both backends must agree on that set:
   $ cat raylib_colors
   #0000FFFF
   #008080FF
+  #0AC90AFF
   #282828FF
   #40E0D0FF
   #4B0082FF

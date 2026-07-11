@@ -43,59 +43,88 @@ let signed_area pts =
   done;
   !a /. 2.
 
-let point_in_triangle px py (ax, ay) (bx, by) (cx, cy) =
+(* Whether [p] is inside the triangle, or within the [eps] tolerance of its
+   boundary: near-boundary points must count as inside, because a vertex lying
+   float-noise outside a candidate ear is exactly how a computed polygon
+   pinches back on itself (see [triangulate]). *)
+let point_in_triangle ~eps px py (ax, ay) (bx, by) (cx, cy) =
   let d1 = ((px -. bx) *. (ay -. by)) -. ((ax -. bx) *. (py -. by)) in
   let d2 = ((px -. cx) *. (by -. cy)) -. ((bx -. cx) *. (py -. cy)) in
   let d3 = ((px -. ax) *. (cy -. ay)) -. ((cx -. ax) *. (py -. ay)) in
-  let has_neg = d1 < 0. || d2 < 0. || d3 < 0. in
-  let has_pos = d1 > 0. || d2 > 0. || d3 > 0. in
+  let has_neg = d1 < -.eps || d2 < -.eps || d3 < -.eps in
+  let has_pos = d1 > eps || d2 > eps || d3 > eps in
   not (has_neg && has_pos)
 
 (* Ear-clipping triangulation of a simple polygon (convex or concave). Returns
-   a list of triangles as point triples, in the same coordinates as [pts]. *)
+   a list of triangles as point triples, in the same coordinates as [pts].
+
+   Degenerate vertices — consecutive duplicates, collinear runs along an edge,
+   zero-width spikes — are routine in computed polygons (e.g. a raycast
+   visibility polygon). None of them can pass a strict ear test, so they used
+   to push the loop into its clip-anything fallback, whose arbitrary triangles
+   overlap the real ones. The triangles are blended one by one, so with a
+   translucent color any overlap double-blends into a visible streak: emitting
+   overlapping triangles is never acceptable. Such corners span (near-)zero
+   area, and are instead clipped without emitting anything. *)
 let triangulate pts =
   let pts = Array.of_list pts in
   let n = Array.length pts in
   if n < 3 then []
   else begin
+    (* Tolerances relative to the polygon's coordinate magnitude. *)
+    let extent =
+      Array.fold_left
+        (fun acc (x, y) ->
+          Float.max acc (Float.max (Float.abs x) (Float.abs y)))
+        1.0 pts
+    in
+    let eps_area = 1e-7 *. extent *. extent in
     let orient = if signed_area pts >= 0. then 1. else -1. in
     let cross (ax, ay) (bx, by) (cx, cy) =
       ((bx -. ax) *. (cy -. ay)) -. ((cx -. ax) *. (by -. ay))
     in
-    let is_ear remaining ip ic inx =
+    (* [`Ear] emits a triangle; [`Flat] is a zero-area corner clipped without
+       emitting; [`No] is a reflex corner, or one whose ear triangle contains
+       another vertex. *)
+    let classify remaining ip ic inx =
       let a = pts.(ip) and b = pts.(ic) and c = pts.(inx) in
-      (* Convex corner (matching the polygon orientation) with no other vertex
-         falling inside the candidate ear triangle. *)
-      cross a b c *. orient > 0.
-      && List.for_all
-           (fun j ->
-             j = ip || j = ic || j = inx
-             ||
-             let px, py = pts.(j) in
-             not (point_in_triangle px py a b c))
-           remaining
+      let cr = cross a b c *. orient in
+      if Float.abs cr <= eps_area then `Flat
+      else if cr < 0. then `No
+      else if
+        List.for_all
+          (fun j ->
+            j = ip || j = ic || j = inx
+            ||
+            let px, py = pts.(j) in
+            not (point_in_triangle ~eps:eps_area px py a b c))
+          remaining
+      then `Ear
+      else `No
     in
     let rec loop remaining acc =
       match remaining with
-      | [ a; b; c ] -> (pts.(a), pts.(b), pts.(c)) :: acc
+      | [] | [ _ ] | [ _; _ ] -> acc
       | _ ->
           let arr = Array.of_list remaining in
           let m = Array.length arr in
           let rec find i =
             if i >= m then
-              (* No ear found (degenerate input): clip a vertex anyway so we
-                 always make progress and terminate. *)
-              (arr.(0), (pts.(arr.(m - 1)), pts.(arr.(0)), pts.(arr.(1))))
+              (* No ear found (self-intersecting input): clip a vertex anyway
+                 so we always make progress and terminate. *)
+              (arr.(0), Some (pts.(arr.(m - 1)), pts.(arr.(0)), pts.(arr.(1))))
             else
               let ip = arr.((i + m - 1) mod m) in
               let ic = arr.(i) in
               let inx = arr.((i + 1) mod m) in
-              if is_ear remaining ip ic inx then
-                (ic, (pts.(ip), pts.(ic), pts.(inx)))
-              else find (i + 1)
+              match classify remaining ip ic inx with
+              | `Ear -> (ic, Some (pts.(ip), pts.(ic), pts.(inx)))
+              | `Flat -> (ic, None)
+              | `No -> find (i + 1)
           in
           let clipped, tri = find 0 in
-          loop (List.filter (fun j -> j <> clipped) remaining) (tri :: acc)
+          let acc = match tri with Some t -> t :: acc | None -> acc in
+          loop (List.filter (fun j -> j <> clipped) remaining) acc
     in
     loop (List.init n (fun i -> i)) []
   end
@@ -108,14 +137,125 @@ let draw_triangle_ccw color (ax, ay) (bx, by) (cx, cy) =
   if area > 0. then Raylib.draw_triangle va vc vb color
   else Raylib.draw_triangle va vb vc color
 
+(* Convex (allowing collinear corners): every turn goes the same way. *)
+let is_convex pts =
+  let n = Array.length pts in
+  let sign = ref 0. in
+  let ok = ref true in
+  for i = 0 to n - 1 do
+    let ax, ay = pts.(i) in
+    let bx, by = pts.((i + 1) mod n) in
+    let cx, cy = pts.((i + 2) mod n) in
+    let cr = ((bx -. ax) *. (cy -. ay)) -. ((cx -. ax) *. (by -. ay)) in
+    if cr *. !sign < 0. then ok := false;
+    if !sign = 0. then sign := cr
+  done;
+  !ok
+
+(* --- Parity-mask fill for concave polygons ---
+
+   Triangulating a concave polygon can produce long sliver triangles (a raycast
+   visibility polygon — hundreds of near-radial vertices — is the worst case:
+   ear clipping yields slivers well under a pixel wide). The rasterizer snaps
+   vertices to a subpixel grid, so along such slivers some (MSAA) samples land
+   in no triangle at all, which resolves into hairline seams across the fill.
+
+   So concave polygons are filled with the stencil-less fan+XOR trick instead:
+   for each boundary edge, XOR the triangle (centroid, edge) into an offscreen
+   mask — a pixel ends up set iff a ray to the centroid crosses the boundary an
+   even number of times, i.e. iff it is inside the polygon (even-odd rule) —
+   then composite the mask once with the fill color. Coverage is decided per
+   sample by cancellation, never by two triangles agreeing on a shared edge, so
+   there are no seams and translucent colors are blended exactly once. The mask
+   has no MSAA, so the outline is aliased — the price for seam-free fills. *)
+
+let mask_rt : Raylib.RenderTexture.t option ref = ref None
+
+(* The mask must be exactly screen-sized: scissoring inside texture mode and
+   the final flipped blit both assume the render texture matches the screen. *)
+let get_mask_rt () =
+  let w = Raylib.get_screen_width () and h = Raylib.get_screen_height () in
+  let matches rt =
+    let t = Raylib.RenderTexture.texture rt in
+    Raylib.Texture.width t = w && Raylib.Texture.height t = h
+  in
+  match !mask_rt with
+  | Some rt when matches rt -> rt
+  | prev ->
+      Option.iter Raylib.unload_render_texture prev;
+      let rt = Raylib.load_render_texture w h in
+      mask_rt := Some rt;
+      rt
+
+let fill_poly_parity ~io color pts =
+  let rt = get_mask_rt () in
+  let n = Array.length pts in
+  let ox = ref 0. and oy = ref 0. in
+  Array.iter
+    (fun (x, y) ->
+      ox := !ox +. x;
+      oy := !oy +. y)
+    pts;
+  let o = (!ox /. float_of_int n, !oy /. float_of_int n) in
+  (* Clear only the polygon's (clamped) bounding box, then XOR the fan in. *)
+  let minx = ref infinity and miny = ref infinity in
+  let maxx = ref neg_infinity and maxy = ref neg_infinity in
+  Array.iter
+    (fun (x, y) ->
+      minx := Float.min !minx x;
+      miny := Float.min !miny y;
+      maxx := Float.max !maxx x;
+      maxy := Float.max !maxy y)
+    pts;
+  let sw = Raylib.get_screen_width () and sh = Raylib.get_screen_height () in
+  let bx = int_of_float (Float.max 0. !minx) in
+  let by = int_of_float (Float.max 0. !miny) in
+  let bw = min (int_of_float (Float.min !maxx (float_of_int sw)) + 2 - bx) (sw - bx) in
+  let bh = min (int_of_float (Float.min !maxy (float_of_int sh)) + 2 - by) (sh - by) in
+  if bw > 0 && bh > 0 then begin
+    Raylib.begin_texture_mode rt;
+    Raylib.begin_scissor_mode bx by bw bh;
+    Raylib.clear_background Raylib.Color.blank;
+    (* dst' = (1 - dst) * src: with white input, each triangle toggles the
+       pixels it covers (XOR), in color and alpha alike. The factors must be
+       set before activating the custom mode. *)
+    Raylib.Rlgl.set_blend_factors Raylib.Rlgl.BlendFactor.one_minus_dst_color
+      Raylib.Rlgl.BlendFactor.zero Raylib.Rlgl.BlendFunction.func_add;
+    Raylib.begin_blend_mode Raylib.BlendMode.Custom;
+    for i = 0 to n - 1 do
+      draw_triangle_ccw Raylib.Color.white o pts.(i) pts.((i + 1) mod n)
+    done;
+    Raylib.end_blend_mode ();
+    Raylib.end_scissor_mode ();
+    Raylib.end_texture_mode ();
+    (* Composite the mask once, tinted: texels are (1,1,1,1) inside the polygon
+       and fully transparent outside. Only the cleared bounding box is blitted
+       — the rest of the texture holds stale masks of earlier fills. The
+       texture is stored upside down (FBO origin is bottom-left): screen rows
+       [by, by+bh) are texture rows [sh-by-bh, sh-by) in reverse, which is what
+       the negative source height selects. *)
+    let t = Raylib.RenderTexture.texture rt in
+    with_scissor ~io @@ fun () ->
+    Raylib.draw_texture_rec t
+      (Raylib.Rectangle.create (float_of_int bx)
+         (float_of_int (sh - by - bh))
+         (float_of_int bw)
+         (-.float_of_int bh))
+      (Raylib.Vector2.create (float_of_int bx) (float_of_int by))
+      color
+  end
+
 let fill_poly ~io ?color poly =
   let pts = Polygon.points poly in
   if List.length pts >= 3 then begin
     let color = get_color ~io color in
-    let pts = List.map (project ~io) pts in
-    let tris = triangulate pts in
-    with_scissor ~io @@ fun () ->
-    List.iter (fun (a, b, c) -> draw_triangle_ccw color a b c) tris
+    let pts = Array.of_list (List.map (project ~io) pts) in
+    if is_convex pts then begin
+      let tris = triangulate (Array.to_list pts) in
+      with_scissor ~io @@ fun () ->
+      List.iter (fun (a, b, c) -> draw_triangle_ccw color a b c) tris
+    end
+    else fill_poly_parity ~io color pts
   end
 
 (* The native [Raylib.draw_rectangle] is axis-aligned and would ignore the view

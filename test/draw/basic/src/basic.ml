@@ -70,6 +70,31 @@ let () =
   Polygon.fill ~io ~color:Color.magenta tri;
   Polygon.draw ~io ~color:Color.gold tri;
 
+  (* Below the polygon: a translucent fill of a degenerate polygon, like the
+     visibility polygons a raycast produces — duplicate vertices, collinear
+     runs along an edge, a zero-width spike, and a near-duplicate (float
+     noise) return point. Any triangulation overlap double-blends the alpha
+     into visible streaks. *)
+  let fx = cx and fy = cy +. 95. in
+  let fan =
+    Polygon.v
+      [
+        Point.v (fx -. 100.) (fy -. 45.);
+        Point.v (fx -. 20.) (fy -. 45.);
+        Point.v (fx +. 40.) (fy -. 45.);
+        Point.v (fx +. 40.) (fy -. 45.);
+        Point.v (fx +. 100.) (fy -. 45.);
+        Point.v (fx +. 100.) fy;
+        Point.v (fx +. 30.) fy;
+        Point.v (fx +. 20.) (fy -. 20.);
+        Point.v (fx +. 29.99999) fy;
+        Point.v (fx -. 40.) fy;
+        Point.v (fx -. 40.) (fy +. 45.);
+        Point.v (fx -. 100.) (fy +. 45.);
+      ]
+  in
+  Polygon.fill ~io ~color:(Color.rgb ~alpha:0.75 0 255 0) fan;
+
   (* (1,1) Touching boxes — 4 cells sharing exact edges *)
   let b = cell 1 1 in
   label ~io b "Touching boxes";
