@@ -71,61 +71,67 @@ let get_sized_font ~io font size =
       Hashtbl.replace font_s.sizes size sf;
       (font_s, sf)
 
-let get ~io font_opt size_opt text =
-  let font, req_size = get_font ~io font_opt size_opt in
-  let font_s = Delayed.force ~io font in
-  (* raylib/stb size fonts by pixel height (ascent - descent). Rasterise the
-     atlas at the whole-pixel height [Font_metrics.pixel_height] and draw glyphs
-     1:1 (stb has no hinting, so it is only crisp on the pixel grid); the browser
-     snaps to the same height, so the two backends render at exactly the same
-     size. https://github.com/raysan5/raylib/issues/3766 *)
-  let atlas_px = Font_metrics.pixel_height font_s.metrics req_size in
-  let font_s, sf = get_sized_font ~io font atlas_px in
-  ensure_codepoints font_s sf atlas_px text;
-  (sf.raylib_font, req_size, font_s)
-
 let text_size ~io ?font ?size text =
-  let _raylib_font, req_size, font_s = get ~io font size text in
-  let w, h = Font_metrics.text_size font_s.metrics req_size text in
+  let font, req_size = get_font ~io font size in
+  let font_s = Delayed.force ~io font in
+  let w, h =
+    Font_metrics.text_size font_s.metrics (float_of_int req_size) text
+  in
   Size.v w h
 
 let tau = 8.0 *. atan 1.0
 
 (* Draw a single glyph (the first codepoint of [text]) with its layout origin at
-   [p]; inter-glyph advancing is done in the shared Draw_geometry layout. The
-   glyph is drawn at the atlas' integer pixel height (a 1:1 blit; stb has no
-   hinting, so it is only crisp at whole sizes/positions). *)
+   [p]; inter-glyph advancing is done in the shared Draw_geometry layout.
+
+   raylib/stb size fonts by pixel height (ascent - descent). Rasterise the atlas
+   at the whole-pixel *on-screen* height — the requested em size multiplied by
+   the view scale — and draw it 1:1 (stb has no hinting, so it is only crisp on
+   the pixel grid); the browser rasterises its vector text under the same
+   transform, so the two backends render at the same size.
+   https://github.com/raysan5/raylib/issues/3766 *)
 let draw_glyph ~io ?color ?font ?size ~at:p text =
-  let raylib_font, req_size, font_s = get ~io font size text in
+  let font, req_size = get_font ~io font size in
+  let view_scale = io.view.Transform.scale in
+  let font_s = Delayed.force ~io font in
   let m = font_s.metrics in
-  let glyph_size = float_of_int (Font_metrics.pixel_height m req_size) in
-  let color = get_color ~io color in
-  let x, y = project ~io p in
-  let angle = io.view.Transform.rotate *. 360.0 /. tau in
-  let cp =
-    Uchar.to_int (Uchar.utf_decode_uchar (String.get_utf_8_uchar text 0))
-  in
-  with_scissor ~io begin fun () ->
-      if angle = 0.0 then begin
-        (* Offset the glyph top so the baseline lands on the ceiled ascent. *)
-        let top =
-          Float.round
-            (y
-            +. Font_metrics.line_ascent m req_size
-            -. Font_metrics.raw_ascent m req_size)
-        in
-        Raylib.draw_text_codepoint raylib_font cp
-          (Raylib.Vector2.create (Float.round x) top)
-          glyph_size color
+  let eff_size = float_of_int req_size *. view_scale in
+  let atlas_px = Font_metrics.pixel_height m eff_size in
+  if atlas_px > 0 then begin
+    let font_s, sf = get_sized_font ~io font atlas_px in
+    ensure_codepoints font_s sf atlas_px text;
+    let raylib_font = sf.raylib_font in
+    let glyph_size = float_of_int atlas_px in
+    let color = get_color ~io color in
+    let x, y = project ~io p in
+    let angle = io.view.Transform.rotate *. 360.0 /. tau in
+    let cp =
+      Uchar.to_int (Uchar.utf_decode_uchar (String.get_utf_8_uchar text 0))
+    in
+    (* The baseline sits [line_ascent] below [p] in world space (like the
+       browser); on screen that offset is scaled by the view. The glyph cell's
+       top is then [raw_ascent] — at the on-screen size — above the baseline. *)
+    let top_offset =
+      (view_scale *. Font_metrics.line_ascent m (float_of_int req_size))
+      -. Font_metrics.raw_ascent m eff_size
+    in
+    with_scissor ~io begin fun () ->
+        if angle = 0.0 then
+          Raylib.draw_text_codepoint raylib_font cp
+            (Raylib.Vector2.create (Float.round x)
+               (Float.round (y +. top_offset)))
+            glyph_size color
+        else begin
+          (* Rotated text can't be pixel-snapped; place it via the rlgl matrix.
+             After [translatef]/[rotatef] coordinates are in screen pixels along
+             the rotated axes, so [top_offset] applies unchanged. *)
+          Raylib.Rlgl.push_matrix ();
+          Raylib.Rlgl.translatef x y 0.0;
+          Raylib.Rlgl.rotatef angle 0.0 0.0 1.0;
+          Raylib.draw_text_codepoint raylib_font cp
+            (Raylib.Vector2.create 0.0 top_offset)
+            glyph_size color;
+          Raylib.Rlgl.pop_matrix ()
+        end
       end
-      else begin
-        (* Rotated text can't be pixel-snapped; place it via the rlgl matrix. *)
-        Raylib.Rlgl.push_matrix ();
-        Raylib.Rlgl.translatef x y 0.0;
-        Raylib.Rlgl.rotatef angle 0.0 0.0 1.0;
-        Raylib.draw_text_codepoint raylib_font cp
-          (Raylib.Vector2.create 0.0 0.0)
-          glyph_size color;
-        Raylib.Rlgl.pop_matrix ()
-      end
-    end
+  end

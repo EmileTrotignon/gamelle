@@ -7,17 +7,23 @@
   $ odiff lines_browser.png lines_raylib.png 
   Found 14215 different pixels (3.47%)
   [22]
-  $ odiff roboto_browser.png roboto_raylib.png 
+  $ odiff roboto_browser.png roboto_raylib.png
   Found 6269 different pixels (1.53%)
   [22]
+  $ odiff view_browser.png view_raylib.png
+  Found 6088 different pixels (1.49%)
+  [22]
 
-  $ odiff --antialiasing glyph_browser.png glyph_raylib.png 
+  $ odiff --antialiasing glyph_browser.png glyph_raylib.png
   Images are identical
   $ odiff --antialiasing roboto_glyph_browser.png roboto_glyph_raylib.png 
   Images are identical
   $ odiff --antialiasing lines_browser.png lines_raylib.png 
   Found 3994 different pixels (0.98%)
   [22]
-  $ odiff --antialiasing roboto_browser.png roboto_raylib.png 
+  $ odiff --antialiasing roboto_browser.png roboto_raylib.png
   Found 1185 different pixels (0.29%)
+  [22]
+  $ odiff --antialiasing view_browser.png view_raylib.png
+  Found 1386 different pixels (0.34%)
   [22]

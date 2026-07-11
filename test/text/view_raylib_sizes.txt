@@ -1,0 +1,6 @@
+size=20 "identity view" -> w=158.721 h=29.000
+size=20 "scaled x1.6" -> w=134.302 h=29.000
+size=20 "scaled x0.75" -> w=146.512 h=29.000
+size=20 "rotated 0.3 rad" -> w=183.140 h=29.000
+size=20 "rotated + scaled" -> w=195.349 h=29.000
+size=20 "translate rotate scale" -> w=268.605 h=29.000

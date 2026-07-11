@@ -102,9 +102,9 @@ let string_of_cp cp =
   Buffer.add_utf_8_uchar b (Uchar.of_int cp);
   Buffer.contents b
 
-(* Integer pixel height the glyph atlas / css font is rendered at. *)
-let pixel_height t size =
-  int_of_float (Float.round (float_of_int size *. t.em_scale))
+(* Integer pixel height the glyph atlas / css font is rendered at. [size] is a
+   float so backends can pass an effective size that includes the view scale. *)
+let pixel_height t size = int_of_float (Float.round (size *. t.em_scale))
 
 (* Pixels per em at [size]: one em is this many pixels. Advances, the baseline and
    the line height are all scaled by it. *)

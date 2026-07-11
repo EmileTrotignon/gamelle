@@ -67,7 +67,7 @@ let default_size = Gamelle_common.Font.default_size
 (* Set the css font so one em is [Font_metrics.em_px] pixels — the same per-em
    pixel size (snapped to a whole pixel height) the raylib atlas uses. *)
 let set_snapped_font ~io m font_name size =
-  let css = Font_metrics.em_px m size in
+  let css = Font_metrics.em_px m (float_of_int size) in
   C.set_font io.backend.ctx
     (Jstr.of_string (Printf.sprintf "%gpx %s" css font_name))
 
@@ -81,11 +81,13 @@ let draw_at ~io ?color ?font ?size ~at text =
   let x, y = Point.to_tuple at in
   set_snapped_font ~io m font_name size;
   let ctx = io.backend.ctx in
-  let baseline = y +. Font_metrics.line_ascent m size in
+  let baseline = y +. Font_metrics.line_ascent m (float_of_int size) in
   Clip.draw_clip ~io ctx (fun () ->
       C.fill_text ctx (Jstr.of_string text) ~x:(Float.round x) ~y:baseline)
 
 let text_size ~io ?font ?size text =
   let font_name, size = get_font ~io font size in
-  let w, h = Font_metrics.text_size (metrics_of font_name) size text in
+  let w, h =
+    Font_metrics.text_size (metrics_of font_name) (float_of_int size) text
+  in
   Size.v w h

@@ -22,21 +22,22 @@ val iter_codepoints : string -> (int -> unit) -> unit
 val string_of_cp : int -> string
 (** [string_of_cp cp] is the single-codepoint UTF-8 string for [cp]. *)
 
-val pixel_height : t -> int -> int
+val pixel_height : t -> float -> int
 (** [pixel_height t size] is the integer pixel height the glyph atlas / css font
-    is rendered at for the requested em [size]. *)
+    is rendered at for the requested em [size]. [size] is a float so backends
+    can pass an effective size that includes the view scale. *)
 
-val em_px : t -> int -> float
+val em_px : t -> float -> float
 (** [em_px t size] is the number of pixels in one em at [size]. Advances, the
     baseline and the line height are all scaled by it. *)
 
-val line_ascent : t -> int -> float
+val line_ascent : t -> float -> float
 (** [line_ascent t size] is the baseline offset from the top of the line (the
     line ascent, ceiled to a whole pixel). *)
 
-val raw_ascent : t -> int -> float
+val raw_ascent : t -> float -> float
 (** [raw_ascent t size] is the font's own (un-ceiled) ascent in pixels: where a
     glyph's baseline sits relative to the top of its drawn cell. *)
 
-val text_size : t -> int -> string -> float * float
+val text_size : t -> float -> string -> float * float
 (** [text_size t size text] is the rendered [(width, height)] of [text]. *)

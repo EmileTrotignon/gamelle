@@ -7,6 +7,7 @@
 ;   dune build @compare_glyph        --auto-promote  ; two glyphs, default font
 ;   dune build @compare_roboto       --auto-promote  ; lines, Roboto (proportional)
 ;   dune build @compare_roboto_glyph --auto-promote  ; two glyphs, Roboto
+;   dune build @compare_view         --auto-promote  ; scaled + rotated view
 ;
 ; `dune runtest` asserts that both backends predict the same text sizes (via the
 ; public Text.size / Text.size_multiline) — see the size-assertion rules below.
@@ -16,12 +17,12 @@
 ; and browser must be separate executables because gamelle.raylib has C stubs and
 ; cannot compile to js.
 
-; One module per scenario (lines, glyph, roboto, roboto_glyph) plus shared
+; One module per scenario (lines, glyph, roboto, roboto_glyph, view) plus shared
 ; infrastructure in [common]. Embeds the Roboto font (via ppx_blob).
 
 (library
  (name scenes)
- (modules common lines glyph roboto roboto_glyph)
+ (modules common lines glyph roboto roboto_glyph view_scene)
  (libraries gamelle)
  (preprocess
   (pps ppx_blob))
@@ -83,6 +84,18 @@
  (action
   (with-stdout-to
    roboto_glyph.html
+   (run
+    %{bin:gamelle}
+    html
+    --template=scene.template.html
+    --script=dump_js.bc.js))))
+
+(rule
+ (target view.html)
+ (deps scene.template.html dump_js.bc.js)
+ (action
+  (with-stdout-to
+   view.html
    (run
     %{bin:gamelle}
     html
@@ -235,6 +248,41 @@
    %{project_root}/test/raylib_screenshot.sh
    4448)))
 
+; Test 5: text under a scaled and rotated view.
+
+(rule
+ (alias compare_view)
+ (targets
+  view_compare.png
+  view_diff.png
+  view_raylib.png
+  view_browser.png
+  view_raylib_sizes.txt
+  view_browser_sizes.txt
+  view_sizes_diff.txt)
+ (mode promote)
+ (deps
+  compare.sh
+  main.exe
+  view.html
+  (file %{project_root}/test/cram/screenshot/screenshot.exe)
+  (file %{project_root}/test/cram/screenshot/dump_sizes.exe)
+  (file %{project_root}/data/FreeMono.ttf)
+  (file %{project_root}/test/raylib_screenshot.sh))
+ (action
+  (run
+   bash
+   compare.sh
+   ./main.exe
+   view
+   view.html
+   %{project_root}/test/cram/screenshot/screenshot.exe
+   %{project_root}/test/cram/screenshot/dump_sizes.exe
+   view_
+   %{project_root}/data/FreeMono.ttf
+   %{project_root}/test/raylib_screenshot.sh
+   4449)))
+
 (cram
  (package gamelle)
  (deps
@@ -246,7 +294,10 @@
   roboto_glyph_raylib.png
   roboto_browser.png
   roboto_raylib.png
+  view_browser.png
+  view_raylib.png
   lines_sizes_diff.txt
   glyph_sizes_diff.txt
   roboto_glyph_sizes_diff.txt
-  roboto_sizes_diff.txt))
+  roboto_sizes_diff.txt
+  view_sizes_diff.txt))

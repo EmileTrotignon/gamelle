@@ -10,6 +10,7 @@ let render ~io () =
   | "glyph" -> Glyph.render ~io ()
   | "roboto" -> Roboto.render ~io ()
   | "roboto_glyph" -> Roboto_glyph.render ~io ()
+  | "view" -> View_scene.render ~io ()
   | "lines" | _ -> Lines.render ~io ()
 
 let () =

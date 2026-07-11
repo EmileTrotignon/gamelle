@@ -4,3 +4,4 @@ Every single size diff should be empty
   $ cat glyph_sizes_diff.txt
   $ cat roboto_glyph_sizes_diff.txt
   $ cat roboto_sizes_diff.txt
+  $ cat view_sizes_diff.txt

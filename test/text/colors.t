@@ -89,6 +89,18 @@ $ diff jsoo_colors raylib_colors
 
 $ diff jsoo_colors raylib_colors
 
+  $ $IM view_browser.png txt:- | awk 'NR>1{print $3}' | sort | uniq -c | sort -rn | awk '$1 >= 250' > jsoo_colors
+  $ cat jsoo_colors
+   395404 #FFFFFFFF
+     1324 #FF7F7FFF
+      615 #000000FF
+
+  $ $IM view_raylib.png txt:- | awk 'NR>1{print $3}' | sort | uniq -c | sort -rn | awk '$1 >= 250' > raylib_colors
+  $ cat raylib_colors
+   396091 #FFFFFFFF
+     1463 #FF8080FF
+      741 #000000FF
+
 When there is a diff, uncomment the bellow to understand whats happening
 
 $ cp image.png /tmp
