@@ -210,8 +210,12 @@ let fill_poly_parity ~io color pts =
   let sw = Raylib.get_screen_width () and sh = Raylib.get_screen_height () in
   let bx = int_of_float (Float.max 0. !minx) in
   let by = int_of_float (Float.max 0. !miny) in
-  let bw = min (int_of_float (Float.min !maxx (float_of_int sw)) + 2 - bx) (sw - bx) in
-  let bh = min (int_of_float (Float.min !maxy (float_of_int sh)) + 2 - by) (sh - by) in
+  let bw =
+    min (int_of_float (Float.min !maxx (float_of_int sw)) + 2 - bx) (sw - bx)
+  in
+  let bh =
+    min (int_of_float (Float.min !maxy (float_of_int sh)) + 2 - by) (sh - by)
+  in
   if bw > 0 && bh > 0 then begin
     Raylib.begin_texture_mode rt;
     Raylib.begin_scissor_mode bx by bw bh;
