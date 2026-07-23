@@ -15,7 +15,11 @@ let handle_clip_events ~io b =
   if io.clip_events then
     match io.clip with
     | None -> b
-    | Some clip -> if Box.mem (mouse_pos ~io) clip then b else false
+    (* [clip] is a screen-space polygon, so test the raw (un-projected) mouse
+       position against it. *)
+    | Some clip ->
+        if Polygon.mem (Events_backend.mouse_pos !(io.event)) clip then b
+        else false
   else b
 
 let is_pressed ~io k =

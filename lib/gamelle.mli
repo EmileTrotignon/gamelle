@@ -652,6 +652,12 @@ module Polygon : sig
   val pp : Format.formatter -> t -> unit
   (** [Format.printf "%a" pp t] pretty prints the polygon [t] points. *)
 
+  val of_box : Box.t -> t
+  (** [of_box] converts a box into its corresponding polygon. *)
+
+  val mem : Point.t -> t -> bool
+  (** [mem point poly] is true if [point] is inside [poly] *)
+
   (** {2 Accessors} *)
 
   val center : t -> Point.t
@@ -828,16 +834,21 @@ end
 module Text : sig
   (** Text rendering. *)
 
+  type position = TopLeftCorner | Middle
+
   val draw :
     io:io ->
     ?color:Color.t ->
     ?font:Font.t ->
     ?size:int ->
+    ?position:position ->
     at:Point.t ->
     string ->
     unit
   (** [draw ~io ~at txt] prints the string [txt] at position [at] on the screen.
-  *)
+      [?position] controls what [~at] refers to: [TopLeftCorner] (default) means
+      [~at] is the top-left corner of the text; [Middle] means [~at] is the
+      centre. *)
 
   val draw_multiline :
     io:io ->
@@ -846,12 +857,13 @@ module Text : sig
     ?interline:float ->
     ?font:Font.t ->
     ?size:int ->
+    ?position:position ->
     at:Point.t ->
     string ->
     unit
   (** [draw_multiline ~io ~at txt] prints the string [txt] at position [at] on
       the screen, possibly wrapping it on multiple lines if the text overflows
-      [?width]. *)
+      [?width]. [?position] controls what [~at] refers to (see {!draw}). *)
 
   (** {2 Measure} *)
 
@@ -876,6 +888,7 @@ val draw_string :
   ?color:Color.t ->
   ?font:Font.t ->
   ?size:int ->
+  ?position:Text.position ->
   at:Point.t ->
   string ->
   unit
@@ -1461,6 +1474,9 @@ module View : sig
 
   val clip : Box.t -> io -> io
   (** [clip b io] ensures no drawing can happen outside of the box [b]. *)
+
+  val unclip : io -> io
+  (** [unclip io] removes any active clip region. *)
 
   val z_index : int -> io -> io
   (** [z_index z io] controls the depth [z] of the following draws. *)

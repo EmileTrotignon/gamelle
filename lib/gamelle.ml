@@ -72,5 +72,5 @@ let run init f =
 
 module Font = Gamelle_backend.Font
 
-let draw_string ~io ?color ?font ?size ~at txt =
-  Text.draw ~io ?color ?font ?size ~at txt
+let draw_string ~io ?color ?font ?size ?position ~at txt =
+  Text.draw ~io ?color ?font ?size ?position ~at txt

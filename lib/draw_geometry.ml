@@ -119,6 +119,17 @@ type shape = Shape.t
 module Text = struct
   include Gamelle_backend.Text
 
+  type position = TopLeftCorner | Middle
+
+  let offset_for_position ~io ?font ?size position at text =
+    match position with
+    | TopLeftCorner -> at
+    | Middle ->
+        let s = Gamelle_backend.Text.size ~io ?font ?size text in
+        Geometry.Point.v
+          (Geometry.Point.x at -. (Geometry.Size.width s /. 2.))
+          (Geometry.Point.y at -. (Geometry.Size.height s /. 2.))
+
   let sub txt i l = slice ~start:i ~stop:(i + l) txt
 
   let split_on_char char t =
@@ -132,7 +143,8 @@ module Text = struct
   (* Backend-agnostic single-line layout: place each glyph at the running pen
      position (snapped to a whole pixel) and advance by the glyph's measured
      width. Each backend only implements [draw_glyph] (one glyph) and [size]. *)
-  let draw ~io ?color ?font ?size ~at t =
+  let draw ~io ?color ?font ?size ?(position = TopLeftCorner) ~at t =
+    let at = offset_for_position ~io ?font ?size position at t in
     let s = to_string t in
     let x0 = Geometry.Point.x at and y0 = Geometry.Point.y at in
     let lx = ref 0.0 in
@@ -176,14 +188,15 @@ module Text = struct
         let split_word word cpos =
           let chars = chars word in
           List.fold_left
-            (fun (maxw, cpos) char ->
+            begin fun (maxw, cpos) char ->
               let size = text_size char in
               let w = Size.width size in
               let cpos =
                 if w +. cpos.x >= limx then Point.v startx (cpos.y +. hline)
                 else cpos
               in
-              udpate_cpos maxw Vec.(cpos + v w 0.))
+              udpate_cpos maxw Vec.(cpos + v w 0.)
+            end
             (maxw, cpos) chars
         in
         let maxw, cpos =
@@ -211,7 +224,16 @@ module Text = struct
     size_multiline_t ~io ?width ?interline ?font ?size (of_string str)
 
   let draw_multiline_t ~io ?(width = Float.infinity) ?(interline = -8.) ?font
-      ?color ?size ~at:pos text =
+      ?color ?size ?(position = TopLeftCorner) ~at:pos text =
+    let pos =
+      match position with
+      | TopLeftCorner -> pos
+      | Middle ->
+          let s = size_multiline_t ~io ~width ~interline ?font ?size text in
+          Geometry.Point.v
+            (Geometry.Point.x pos -. (Geometry.Size.width s /. 2.))
+            (Geometry.Point.y pos -. (Geometry.Size.height s /. 2.))
+    in
     let text_size = Gamelle_backend.Text.size ~io ?font ?size in
     let draw_string = draw_t ~io ?color ?size ?font in
     let limx = width +. pos.x in
@@ -256,18 +278,21 @@ module Text = struct
     ignore (List.fold_left print_line pos lines);
     ()
 
-  let draw_t ~io ?color ?font ?size ~at t =
-    z ~io (draw ?color ?font ?size ~at t)
+  let draw_t ~io ?color ?font ?size ?position ~at t =
+    z ~io (draw ?color ?font ?size ?position ~at t)
 
-  let draw_multiline_t ~io ?color ?width ?interline ?font ?size ~at t =
-    z ~io (draw_multiline_t ?color ?width ?interline ?font ?size ~at t)
+  let draw_multiline_t ~io ?color ?width ?interline ?font ?size ?position ~at t
+      =
+    z ~io
+      (draw_multiline_t ?color ?width ?interline ?font ?size ?position ~at t)
 
-  let draw_multiline ~io ?color ?width ?interline ?font ?size ~at str =
-    draw_multiline_t ~io ?width ?interline ?font ?color ?size ~at
+  let draw_multiline ~io ?color ?width ?interline ?font ?size ?position ~at str
+      =
+    draw_multiline_t ~io ?width ?interline ?font ?color ?size ?position ~at
       (of_string str)
 
-  let draw ~io ?color ?font ?size ~at t =
-    draw_t ~io ?color ?font ?size ~at (of_string t)
+  let draw ~io ?color ?font ?size ?position ~at t =
+    draw_t ~io ?color ?font ?size ?position ~at (of_string t)
 end
 
 let draw = Bitmap_.draw

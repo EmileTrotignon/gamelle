@@ -4,6 +4,7 @@ type t = Point.t list [@@deriving yojson]
 
 let v li = li
 let points p = p
+let of_box box = Box.corners box
 
 let center = function
   | [] -> assert false
@@ -42,6 +43,22 @@ let segments pts =
         | a :: b :: xs -> go (Segment.v a b :: acc) (b :: xs)
       in
       go [] pts
+
+(* Even-odd ray cast: [pt] is inside iff a ray crosses the boundary an odd
+   number of times. *)
+let mem pt poly =
+  let x, y = (pt.x, pt.y) in
+  List.fold_left
+    (fun inside s ->
+      let p0, p1 = Segment.to_tuple s in
+      let vx0, vy0 = (p0.x, p0.y) in
+      let vx1, vy1 = (p1.x, p1.y) in
+      if
+        vy0 > y <> (vy1 > y)
+        && x < ((vx0 -. vx1) *. (y -. vy1) /. (vy0 -. vy1)) +. vx1
+      then not inside
+      else inside)
+    false (segments poly)
 
 let translate v poly = List.map (Vec.( + ) v) poly
 let map_points f poly = List.map f poly

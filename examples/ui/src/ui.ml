@@ -10,6 +10,12 @@ type state = {
   slider1 : float;
   slider2 : int;
   rad : k;
+  (* View transform applied to the whole UI, to exercise clipping (the vscroll
+     regions clip) under rotation, scaling and translation. *)
+  rotation : float;
+  zoom : float;
+  tx : float;
+  ty : float;
 }
 
 let two_checkboxes [%ui] l1 l2 = Ui.(checkbox [%ui] l1, checkbox [%ui] l2)
@@ -23,12 +29,37 @@ let initial_state =
     slider1 = 0.0;
     slider2 = 15;
     rad = A;
+    rotation = 0.0;
+    zoom = 1.0;
+    tx = 0.0;
+    ty = 0.0;
   }
 
-let rec loop { text; text2; check1; check2; slider1; slider2; rad } ~io =
+let rec loop
+    {
+      text;
+      text2;
+      check1;
+      check2;
+      slider1;
+      slider2;
+      rad;
+      rotation;
+      zoom;
+      tx;
+      ty;
+    } ~io =
   if Input.is_pressed ~io `escape then raise Exit;
   Window.show_cursor ~io true;
+
+  (* Apply the (previous frame's) view transform so the whole UI — and thus the
+     vscroll clip regions — is rotated, scaled and translated. *)
   let panel_size, state =
+    let io =
+      io
+      |> View.translate (Vec.v tx ty)
+      |> View.rotate rotation |> View.scale zoom
+    in
     let open Ui in
     window ~io ~at:Point.zero ~size:(fun s ->
         Size.v (Size.width s *. 1.5) (Size.height s *. 1.))
@@ -107,7 +138,40 @@ let rec loop { text; text2; check1; check2; slider1; slider2; rad } ~io =
     | B -> label [%ui] "B is selected"
     | C -> label [%ui] "C is selected"
     end;
-    { text; text2; check1; check2; slider1; slider2; rad }
+    label [%ui] "View transform (drives the vscroll clipping):";
+    let rotation =
+      horizontal [%ui] @@ fun () ->
+      label [%ui] "rotation";
+      slider [%ui] ~min:(-0.2) ~max:0.2 rotation
+    in
+    let zoom =
+      horizontal [%ui] @@ fun () ->
+      label [%ui] "scale";
+      slider [%ui] ~min:0.25 ~max:2.5 zoom
+    in
+    let tx =
+      horizontal [%ui] @@ fun () ->
+      label [%ui] "translate x";
+      slider [%ui] ~min:(-30.0) ~max:30.0 tx
+    in
+    let ty =
+      horizontal [%ui] @@ fun () ->
+      label [%ui] "translate y";
+      slider [%ui] ~min:(-30.0) ~max:30.0 ty
+    in
+    {
+      text;
+      text2;
+      check1;
+      check2;
+      slider1;
+      slider2;
+      rad;
+      rotation;
+      zoom;
+      tx;
+      ty;
+    }
   in
   Window.set_size ~io panel_size;
   next_frame ~io;

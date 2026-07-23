@@ -34,3 +34,8 @@ let inv_project { scale; translate = tr; rotate } p =
    axis-aligned box containing all four of them. *)
 let project_box t box =
   Polygon.bounding_box (Polygon.v (List.map (project t) (Box.corners box)))
+
+(* The polygon of [poly]'s points projected through [t]. Used to freeze a clip
+   region into screen space at the moment it is applied: a box projected through
+   a rotated view is a (convex) parallelogram, which a box could not represent. *)
+let project_polygon t poly = Polygon.map_points (project t) poly

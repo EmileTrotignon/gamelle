@@ -17,40 +17,11 @@ let project ~io p =
   let x, y = Vec.to_tuple (Transform.project io.view p) in
   (int x, int y)
 
-let draw_clip ~io renderer f =
-  let clip = io.clip in
-  let* () =
-    Option.map
-      (fun clip ->
-        let clip = Transform.project_box io.view clip in
-        let clip_rect =
-          Sdl.Rect.create
-            ~x:((int @@ Box.x_left clip) + 1)
-            ~y:((int @@ Box.y_top clip) + 1)
-            ~w:((int @@ Box.width clip) - 1)
-            ~h:((int @@ Box.height clip) - 1)
-        in
-        Sdl.render_set_clip_rect renderer (Some clip_rect))
-      clip
-    |> function
-    | None -> Ok ()
-    | Some v -> v
-  in
-  let r = f () in
-  let* () =
-    if Option.is_some clip then
-      let win = Window.box ~io in
-      let clip_rect =
-        Sdl.Rect.create
-          ~x:(int @@ Box.x_left win)
-          ~y:(int @@ Box.y_top win)
-          ~w:(int @@ Box.width win)
-          ~h:(int @@ Box.height win)
-      in
-      Sdl.render_set_clip_rect renderer (Some clip_rect)
-    else Ok ()
-  in
-  r
+let draw_clip ~io _renderer f =
+  (* Polygon clipping is not implemented for the (deprecated) SDL backend. *)
+  match io.clip with
+  | Some _ -> failwith "gamelle: clipping is not supported by the SDL backend"
+  | None -> f ()
 
 let draw ~io bmp p =
   let bmp = Delayed.force ~io bmp in

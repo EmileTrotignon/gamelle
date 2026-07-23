@@ -94,6 +94,7 @@ type shape = Shape.t
 
 module Text : sig
   type t
+  type position = TopLeftCorner | Middle
 
   val to_string : t -> string
   val of_string : string -> t
@@ -104,13 +105,21 @@ module Text : sig
   val concat : t list -> t
 
   val draw_t :
-    io:io -> ?color:color -> ?font:font -> ?size:int -> at:point -> t -> unit
+    io:io ->
+    ?color:color ->
+    ?font:font ->
+    ?size:int ->
+    ?position:position ->
+    at:point ->
+    t ->
+    unit
 
   val draw :
     io:io ->
     ?color:color ->
     ?font:font ->
     ?size:int ->
+    ?position:position ->
     at:point ->
     string ->
     unit
@@ -143,6 +152,7 @@ module Text : sig
     ?interline:float ->
     ?font:font ->
     ?size:int ->
+    ?position:position ->
     at:point ->
     t ->
     unit
@@ -154,6 +164,7 @@ module Text : sig
     ?interline:float ->
     ?font:font ->
     ?size:int ->
+    ?position:position ->
     at:point ->
     string ->
     unit
