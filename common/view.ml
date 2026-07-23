@@ -31,6 +31,9 @@ let clip box io =
       Some (Transform.project_polygon io.view (Geometry.Polygon.of_box box));
   }
 
+let clip_polygon poly io =
+  { io with clip = Some (Transform.project_polygon io.view poly) }
+
 let unclip io = { io with clip = None }
 let clip_events b io = { io with clip_events = b }
 let z_index z io = { io with z_index = z }

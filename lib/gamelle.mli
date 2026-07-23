@@ -1475,6 +1475,10 @@ module View : sig
   val clip : Box.t -> io -> io
   (** [clip b io] ensures no drawing can happen outside of the box [b]. *)
 
+  val clip_polygon : Polygon.t -> io -> io
+  (** [clip_polygon p io] ensures no drawing can happen outside of the polygon
+      [p]. *)
+
   val unclip : io -> io
   (** [unclip io] removes any active clip region. *)
 
