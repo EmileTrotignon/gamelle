@@ -306,7 +306,9 @@ let with_scissor ~io f =
              even-odd coverage mask up front (its own render pass) and multiply
              the layer by it below, leaving the shader a plain (unclipped)
              composite. *)
-          let mask = if convex then None else Some (render_mask ~bx ~by ~bw ~bh pts) in
+          let mask =
+            if convex then None else Some (render_mask ~bx ~by ~bw ~bh pts)
+          in
           Raylib.begin_texture_mode rt;
           Raylib.begin_scissor_mode bx by bw bh;
           Raylib.clear_background Raylib.Color.blank;
