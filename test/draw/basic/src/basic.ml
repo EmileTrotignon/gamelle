@@ -1,9 +1,9 @@
 open Gamelle
 
 let w = 1000.
-let h = 600.
+let h = 900.
 let cell_w = w /. 4.
-let cell_h = h /. 2.
+let cell_h = 300.
 
 let cell col row =
   Box.v
@@ -179,5 +179,50 @@ let () =
   in
   Box.fill_rounded ~io ~color:Color.blue ~radius:24. rb;
   Box.draw_rounded ~io ~color:Color.white ~radius:24. rb;
+
+  (* Bottom row: an arbitrary (convex) clip polygon, exercised by every drawing
+     primitive so that clipping is checked against antialiasing and translucent
+     colors. The clip region is a squished hexagon (six edges — more than a
+     box's four); every primitive overflows it, and the polygon outline is drawn
+     unclipped on top so the clip boundary is visible. *)
+  let pi = 4.0 *. atan 1.0 in
+  let poly_cx, poly_cy = (w /. 2., 750.) in
+  let rx, ry = (330., 120.) in
+  let clip_poly =
+    Polygon.v
+      (List.init 6 (fun i ->
+           let a = (float i /. 6.0 *. 2.0 *. pi) +. 0.35 in
+           Point.v (poly_cx +. (rx *. cos a)) (poly_cy +. (ry *. sin a))))
+  in
+  label ~io (cell 0 2) "Polygon clip (AA + alpha)";
+  let cio = View.clip_polygon clip_poly io in
+  (* A translucent full-width box: alpha must blend exactly once, and only
+     inside the polygon. *)
+  Box.fill ~io:cio
+    ~color:(Color.rgb ~alpha:0.4 0 200 255)
+    (Box.v (Point.v 0. 610.) (Size.v w 280.));
+  (* Overlapping translucent circles: overlaps should double-blend, but the
+     clip boundary must not add any extra blending. *)
+  List.iter
+    (fun (dx, (r, g, b)) ->
+      Circle.fill ~io:cio
+        ~color:(Color.rgb ~alpha:0.6 r g b)
+        (Circle.v (Point.v (poly_cx +. dx) poly_cy) 95.))
+    [ (-120., (255, 0, 0)); (0., (0, 255, 0)); (120., (0, 0, 255)) ];
+  (* Antialiased diagonal lines crossing the boundary. *)
+  for i = 0 to 10 do
+    let x = 100. +. (float i *. 80.) in
+    Segment.draw ~io:cio ~color:Color.white
+      (Segment.v (Point.v x 600.) (Point.v (x +. 120.) 900.))
+  done;
+  (* Bitmap and text straddling the boundary. *)
+  draw ~io:cio Assets.camel ~at:(Point.v 60. 690.);
+  Text.draw ~io:cio ~color:Color.yellow ~size:40 ~at:(Point.v 220. 720.)
+    "Clipped text overflowing the polygon!";
+  Arc.fill ~io:cio
+    ~color:(Color.rgb ~alpha:0.7 255 180 0)
+    (Arc.v (Point.v (w -. 120.) poly_cy) 90. ~start:0. ~stop:(1.4 *. pi));
+  (* The clip boundary itself, drawn unclipped. *)
+  Polygon.draw ~io ~color:Color.white clip_poly;
 
   ()

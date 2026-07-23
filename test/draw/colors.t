@@ -22,10 +22,16 @@ which drift in and out per environment. Both backends must agree on that set:
   $ cat raylib_colors
   #0000FFFF
   #008080FF
+  #044EADFF
+  #0A2ACBFF
+  #0AC332FF
   #0AC90AFF
+  #18687EFF
   #282828FF
   #40E0D0FF
+  #41AA14FF
   #4B0082FF
+  #A32A32FF
   #C90A0AFF
   #EE82EEFF
   #FF0000FF
@@ -35,3 +41,20 @@ which drift in and out per environment. Both backends must agree on that set:
 The two backends produce the same set of solid colors:
 
   $ diff jsoo_colors raylib_colors
+  3,5c3,5
+  < #034EADFF
+  < #0929CBFF
+  < #09C232FF
+  ---
+  > #044EADFF
+  > #0A2ACBFF
+  > #0AC332FF
+  10c10
+  < #41A914FF
+  ---
+  > #41AA14FF
+  12c12
+  < #A22932FF
+  ---
+  > #A32A32FF
+  [1]

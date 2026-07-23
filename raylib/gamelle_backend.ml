@@ -15,10 +15,23 @@ module Window = Window
 let has_audio =
   match Sys.getenv_opt "GAMELLE_NO_AUDIO" with Some _ -> false | None -> true
 
+(* The initial window size. Overridable via [GAMELLE_WINDOW_SIZE=WxH] so that
+   headless capture (test/raylib_screenshot.sh) can open the window at the final
+   drawing-box size directly: otherwise the first frame renders at this default
+   and only the second frame — after [drawing_box] has requested the resize —
+   is correct, which a slow software rasteriser makes easy to capture by
+   mistake. *)
+let init_window_size =
+  match Sys.getenv_opt "GAMELLE_WINDOW_SIZE" with
+  | Some s -> (
+      try Scanf.sscanf s "%dx%d" (fun w h -> (w, h)) with _ -> (640, 640))
+  | None -> (640, 640)
+
 let run state update =
   Raylib.set_config_flags Raylib.ConfigFlags.(msaa_4x_hint + window_highdpi);
   Raylib.set_trace_log_level Raylib.TraceLogLevel.Warning;
-  Raylib.init_window 640 640 "Gamelle";
+  let iw, ih = init_window_size in
+  Raylib.init_window iw ih "Gamelle";
   (* Raylib.begin_blend_mode Raylib.BlendMode.Alpha_premultiply; *)
   Raylib.set_target_fps 60;
   if has_audio then Raylib.init_audio_device ();

@@ -41,12 +41,13 @@ let project ~io p =
 
 (* --- Polygon clipping ---
 
-   The clip region ([io.clip]) is a screen-space polygon, frozen when
-   [View.clip] was applied — always a convex quadrilateral, since it is a box
-   projected through the (affine) view. raylib only offers an axis-aligned
-   scissor, so to clip against the rotated quad exactly we render the draw into
-   an offscreen texture, then composite it back through a shader that fades out
-   fragments outside the quad. A single screen-sized texture is reused for every
+   The clip region ([io.clip]) is a screen-space convex polygon, frozen when
+   [View.clip] / [View.clip_polygon] was applied ([View.clip]'s box projected
+   through the affine view is a convex quadrilateral). raylib only offers an
+   axis-aligned scissor, so to clip against the rotated polygon exactly we
+   render the draw into an offscreen texture, then composite it back through a
+   shader that fades out fragments outside the polygon. A screen-sized texture
+   is reused for every
    clipped draw, and everything already funnels through [with_scissor], so this
    covers all primitives (shapes, textures, text) uniformly, per draw call —
    which keeps each draw's own clip and the z-order (draws run sorted, one at a
@@ -68,41 +69,45 @@ void main() {
 }
 |glsl}
 
-(* [clipN{i}]/[clipD{i}] are the four inward-facing edge half-planes of the clip
-   quad (normalised, so the dot product is a signed pixel distance). A fragment's
-   coverage is the softened distance to the nearest edge, clamped to the interior
-   — antialiasing the rotated clip boundary. *)
+(* The clip polygon is passed as up to [max_clip_edges] inward-facing edge
+   half-planes [clipEdges[i] = (nx, ny, d)] (normalised, so [dot(pos, n) - d] is
+   a signed pixel distance), which exactly describe any convex polygon. A
+   fragment's coverage is the softened distance to the nearest edge, clamped to
+   the interior — antialiasing the (rotated) clip boundary. *)
+let max_clip_edges = 16
+
 let clip_fs =
-  {glsl|
+  Printf.sprintf
+    {glsl|
 #version 330
 precision mediump float;
 in vec2 fragTexCoord;
 in vec4 fragColor;
 uniform sampler2D texture0;
-uniform vec2 clipN0; uniform float clipD0;
-uniform vec2 clipN1; uniform float clipD1;
-uniform vec2 clipN2; uniform float clipD2;
-uniform vec2 clipN3; uniform float clipD3;
+uniform vec3 clipEdges[%d];
+uniform int clipCount;
 uniform float screenHeight;
 out vec4 finalColor;
-float edge(vec2 pos, vec2 n, float d) {
-    return smoothstep(-0.75, 0.75, dot(pos, n) - d);
-}
 void main() {
     vec2 pos = vec2(gl_FragCoord.x, screenHeight - gl_FragCoord.y);
-    float cov = edge(pos, clipN0, clipD0);
-    cov = min(cov, edge(pos, clipN1, clipD1));
-    cov = min(cov, edge(pos, clipN2, clipD2));
-    cov = min(cov, edge(pos, clipN3, clipD3));
+    float cov = 1.0;
+    for (int i = 0; i < clipCount; i++) {
+        vec3 e = clipEdges[i];
+        cov = min(cov, smoothstep(-0.75, 0.75, dot(pos, e.xy) - e.z));
+    }
+    // The texture holds premultiplied colour (drawn onto transparent black),
+    // and is composited with a premultiplied blend, so scale all four channels
+    // by the coverage.
     vec4 texel = texture(texture0, fragTexCoord) * fragColor;
-    finalColor = vec4(texel.rgb, texel.a * cov);
+    finalColor = texel * cov;
 }
 |glsl}
+    max_clip_edges
 
 type clip_shader = {
   shader : Raylib.Shader.t;
-  loc_n : Raylib.ShaderLoc.t array;
-  loc_d : Raylib.ShaderLoc.t array;
+  loc_edges : Raylib.ShaderLoc.t;
+  loc_count : Raylib.ShaderLoc.t;
   loc_screen_height : Raylib.ShaderLoc.t;
 }
 
@@ -117,8 +122,8 @@ let get_clip_shader () =
       let s =
         {
           shader;
-          loc_n = Array.init 4 (fun i -> loc (Printf.sprintf "clipN%d" i));
-          loc_d = Array.init 4 (fun i -> loc (Printf.sprintf "clipD%d" i));
+          loc_edges = loc "clipEdges";
+          loc_count = loc "clipCount";
           loc_screen_height = loc "screenHeight";
         }
       in
@@ -126,7 +131,8 @@ let get_clip_shader () =
       s
 
 let clip_buf1 = Ctypes.CArray.make Ctypes.float 1
-let clip_buf2 = Ctypes.CArray.make Ctypes.float 2
+let clip_buf_int = Ctypes.CArray.make Ctypes.int32_t 1
+let clip_buf_edges = Ctypes.CArray.make Ctypes.float (3 * max_clip_edges)
 
 let set_float shader loc v =
   Ctypes.CArray.set clip_buf1 0 v;
@@ -134,12 +140,11 @@ let set_float shader loc v =
     Ctypes.(CArray.start clip_buf1 |> to_voidp)
     Raylib.ShaderUniformDataType.Float
 
-let set_vec2 shader loc x y =
-  Ctypes.CArray.set clip_buf2 0 x;
-  Ctypes.CArray.set clip_buf2 1 y;
+let set_int shader loc v =
+  Ctypes.CArray.set clip_buf_int 0 (Int32.of_int v);
   Raylib.set_shader_value shader loc
-    Ctypes.(CArray.start clip_buf2 |> to_voidp)
-    Raylib.ShaderUniformDataType.Vec2
+    Ctypes.(CArray.start clip_buf_int |> to_voidp)
+    Raylib.ShaderUniformDataType.Int
 
 (* The screen-sized offscreen layer clipped draws are rendered into. Reused
    across draws and reallocated only when the screen size changes. *)
@@ -212,33 +217,48 @@ let with_scissor ~io f =
         in
         if bw > 0 && bh > 0 then begin
           let rt = get_scratch_rt () in
-          (* Render the draw into the (bbox-cleared) offscreen layer. *)
+          (* Render the draw into the (bbox-cleared) offscreen layer. Colour is
+             composited normally, but the alpha channel accumulates as coverage
+             (src factor [one]) so the layer ends up with premultiplied colour
+             over a correct alpha — needed to composite it back without the
+             double-darkening a plain alpha blend into transparent would give. *)
           Raylib.begin_texture_mode rt;
           Raylib.begin_scissor_mode bx by bw bh;
           Raylib.clear_background Raylib.Color.blank;
+          Raylib.Rlgl.set_blend_factors_separate
+            Raylib.Rlgl.BlendFactor.src_alpha
+            Raylib.Rlgl.BlendFactor.one_minus_src_alpha
+            Raylib.Rlgl.BlendFactor.one
+            Raylib.Rlgl.BlendFactor.one_minus_src_alpha
+            Raylib.Rlgl.BlendFunction.func_add
+            Raylib.Rlgl.BlendFunction.func_add;
+          Raylib.begin_blend_mode Raylib.BlendMode.Custom_separate;
           f ();
+          Raylib.end_blend_mode ();
           Raylib.end_scissor_mode ();
           Raylib.end_texture_mode ();
-          (* Composite it back, faded out beyond the clip quad. *)
+          (* Composite it back through the clip shader (which fades out fragments
+             beyond the polygon), with a premultiplied-alpha blend. *)
           let s = get_clip_shader () in
           let planes = clip_half_planes pts in
+          let n = min (Array.length planes) max_clip_edges in
           Array.iteri
-            (fun i (nx, ny, d) ->
-              if i < 4 then begin
-                set_vec2 s.shader s.loc_n.(i) nx ny;
-                set_float s.shader s.loc_d.(i) d
-              end)
+            begin fun i (nx, ny, d) ->
+              if i < n then begin
+                Ctypes.CArray.set clip_buf_edges (3 * i) nx;
+                Ctypes.CArray.set clip_buf_edges ((3 * i) + 1) ny;
+                Ctypes.CArray.set clip_buf_edges ((3 * i) + 2) d
+              end
+            end
             planes;
-          (* A degenerate (triangle) quad leaves the 4th plane unset; repeat the
-             last real edge so it never rejects extra fragments. *)
-          if Array.length planes < 4 then begin
-            let nx, ny, d = planes.(Array.length planes - 1) in
-            set_vec2 s.shader s.loc_n.(3) nx ny;
-            set_float s.shader s.loc_d.(3) d
-          end;
+          Raylib.set_shader_value_v s.shader s.loc_edges
+            Ctypes.(CArray.start clip_buf_edges |> to_voidp)
+            Raylib.ShaderUniformDataType.Vec3 n;
+          set_int s.shader s.loc_count n;
           set_float s.shader s.loc_screen_height
             (float (Raylib.get_render_height ()));
           let t = Raylib.RenderTexture.texture rt in
+          Raylib.begin_blend_mode Raylib.BlendMode.Alpha_premultiply;
           Raylib.begin_shader_mode s.shader;
           (* The render texture is stored bottom-up, so the source height is
              negated to flip it back to screen orientation. *)
@@ -249,6 +269,7 @@ let with_scissor ~io f =
                (-.float bh))
             (Raylib.Vector2.create (float bx) (float by))
             Raylib.Color.white;
-          Raylib.end_shader_mode ()
+          Raylib.end_shader_mode ();
+          Raylib.end_blend_mode ()
         end
       end

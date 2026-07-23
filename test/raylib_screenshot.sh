@@ -10,11 +10,11 @@
 # The server number is given explicitly (rather than via xvfb-run -a) so that
 # several captures can run in parallel on distinct displays without racing.
 #
-# Window placement: the backend opens a fixed INIT x INIT window which the X
-# server centres on the screen; the program then resizes it to its drawing box
-# (W x H) but the top-left corner stays put. So on a SCREEN x SCREEN display the
-# window sits at ((SCREEN-INIT)/2, (SCREEN-INIT)/2) with size W x H. We pick a
-# screen big enough for that rectangle to fit fully, then crop it back out.
+# Window placement: the backend opens the window directly at its drawing-box
+# size W x H (GAMELLE_WINDOW_SIZE, set below), which GLFW centres on the screen.
+# So on a SCREEN x SCREEN display the window sits at ((SCREEN-W)/2, (SCREEN-H)/2)
+# with size W x H. We pick a screen big enough for that rectangle to fit fully,
+# then crop it back out.
 #
 # Timing: rather than capturing once after a fixed sleep, we poll the framebuffer
 # until the cropped window region actually has content. A single fixed delay is
@@ -30,13 +30,14 @@ H="$3"
 SERVERNUM="$4"
 shift 4
 
-INIT=640 # gamelle.raylib's initial window size (raylib/gamelle_backend.ml).
-# The screen must fit the window at its centred-INIT offset: OFF + max(W, H)
-# <= SCREEN, i.e. SCREEN >= 2 * max(W, H) - INIT. Keep at least 1024.
+# The screen must fit the centred W x H window: (SCREEN-W)/2 + W <= SCREEN holds
+# for any SCREEN >= W (likewise H), so SCREEN >= max(W, H) suffices. Keep a
+# margin and at least 1024.
 MAX=$((W > H ? W : H))
-SCREEN=$((2 * MAX - INIT))
+SCREEN=$((MAX + 256))
 [ "$SCREEN" -lt 1024 ] && SCREEN=1024
-OFF=$(((SCREEN - INIT) / 2))
+OFFX=$(((SCREEN - W) / 2))
+OFFY=$(((SCREEN - H) / 2))
 
 FBDIR="$(mktemp -d)"
 trap 'rm -rf "$FBDIR"' EXIT
@@ -47,12 +48,16 @@ trap 'rm -rf "$FBDIR"' EXIT
 # so its output drifts by a few edge pixels between Mesa/LLVM builds (a dev box
 # vs CI); softpipe has no LLVM dependency, giving renders that reproduce across
 # environments so the cram comparisons can pin exact pixel counts.
+# GAMELLE_WINDOW_SIZE: open the window at the capture size directly, so the very
+# first frame is already the right size and placement (no one-frame resize
+# transient to accidentally capture — see raylib/gamelle_backend.ml).
 GAMELLE_NO_AUDIO=1 \
+  GAMELLE_WINDOW_SIZE="${W}x${H}" \
   LIBGL_ALWAYS_SOFTWARE=1 \
   GALLIUM_DRIVER=softpipe \
   xvfb-run -w 1 -n "$SERVERNUM" -s "-screen 0 ${SCREEN}x${SCREEN}x24 -fbdir $FBDIR" \
   bash -c '
-    out="$1"; fbdir="$2"; w="$3"; h="$4"; off="$5"; shift 5
+    out="$1"; fbdir="$2"; w="$3"; h="$4"; offx="$5"; offy="$6"; shift 6
     "$@" &
     app=$!
 
@@ -63,7 +68,7 @@ GAMELLE_NO_AUDIO=1 \
     # from the file mtime, which otherwise make every promoted PNG differ in git
     # even when the pixels are identical.
     capture() {
-      magick "xwd:$fbdir/Xvfb_screen0" -crop "${w}x${h}+${off}+${off}" +repage \
+      magick "xwd:$fbdir/Xvfb_screen0" -crop "${w}x${h}+${offx}+${offy}" +repage \
         -alpha set -strip "PNG32:$out"
     }
 
@@ -82,14 +87,11 @@ GAMELLE_NO_AUDIO=1 \
         break
       fi
     done
-    # The poll above breaks on the first non-blank frame, which can be the
-    # window after it has drawn but *before* it has finished resizing from the
-    # initial INIT x INIT square to its W x H drawing box. Capturing then crops
-    # a mis-sized/mis-placed window and yields a wildly different image. Wait a
-    # little longer for the resize to settle, then take the final capture.
+    # The poll breaks on the first non-blank frame; give the scene one more
+    # moment to reach a steady state, then take the final capture.
     sleep 0.5
     capture
 
     kill "$app" 2>/dev/null || true
     wait "$app" 2>/dev/null || true
-  ' _ "$OUT" "$FBDIR" "$W" "$H" "$OFF" "$@"
+  ' _ "$OUT" "$FBDIR" "$W" "$H" "$OFFX" "$OFFY" "$@"
