@@ -7,7 +7,7 @@ regression — e.g. a blank capture, ~100% of 900000 px = 9000 units — still
 stands out.
 
   $ odiff jsoo.png raylib.png 2>&1 | awk '/identical/{print 0} /different/{print int($2/100)}'
-  59
+  66
 
   $ odiff --antialiasing jsoo.png raylib.png 2>&1 | awk '/identical/{print 0} /different/{print int($2/100)}'
-  17
+  19

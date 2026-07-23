@@ -1,7 +1,7 @@
 open Gamelle
 
 let w = 1000.
-let h = 900.
+let h = 1200.
 let cell_w = w /. 4.
 let cell_h = 300.
 
@@ -224,5 +224,38 @@ let () =
     (Arc.v (Point.v (w -. 120.) poly_cy) 90. ~start:0. ~stop:(1.4 *. pi));
   (* The clip boundary itself, drawn unclipped. *)
   Polygon.draw ~io ~color:Color.white clip_poly;
+
+  (* Fourth row: a *concave* clip polygon — a five-pointed star. Half-planes
+     cannot describe it, so the raylib backend clips it through an even-odd
+     coverage mask; the browser uses its native non-zero path clip. Same battery
+     of overflowing primitives (translucent fills, AA lines, text, bitmap). *)
+  let star_cx, star_cy = (w /. 2., 1050.) in
+  let star =
+    Polygon.v
+      (List.init 10 (fun i ->
+           let r = if i mod 2 = 0 then 140. else 58. in
+           let a = (float i /. 10.0 *. 2.0 *. pi) -. (pi /. 2.0) in
+           Point.v (star_cx +. (r *. cos a)) (star_cy +. (r *. sin a))))
+  in
+  label ~io (cell 0 3) "Concave clip (star)";
+  let sio = View.clip_polygon star io in
+  Box.fill ~io:sio
+    ~color:(Color.rgb ~alpha:0.4 255 128 0)
+    (Box.v (Point.v 0. 910.) (Size.v w 280.));
+  List.iter
+    (fun (dx, (r, g, b)) ->
+      Circle.fill ~io:sio
+        ~color:(Color.rgb ~alpha:0.6 r g b)
+        (Circle.v (Point.v (star_cx +. dx) star_cy) 80.))
+    [ (-90., (0, 200, 255)); (90., (255, 0, 200)) ];
+  for i = 0 to 10 do
+    let x = 100. +. (float i *. 80.) in
+    Segment.draw ~io:sio ~color:Color.white
+      (Segment.v (Point.v x 900.) (Point.v (x +. 100.) 1200.))
+  done;
+  Text.draw ~io:sio ~color:Color.yellow ~size:34 ~at:(Point.v 300. 1035.)
+    "Clipped to a star!";
+  (* The concave boundary, drawn unclipped. *)
+  Polygon.draw ~io ~color:Color.white star;
 
   ()

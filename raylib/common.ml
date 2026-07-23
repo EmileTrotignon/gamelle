@@ -69,11 +69,13 @@ void main() {
 }
 |glsl}
 
-(* The clip polygon is passed as up to [max_clip_edges] inward-facing edge
-   half-planes [clipEdges[i] = (nx, ny, d)] (normalised, so [dot(pos, n) - d] is
-   a signed pixel distance), which exactly describe any convex polygon. A
-   fragment's coverage is the softened distance to the nearest edge, clamped to
-   the interior — antialiasing the (rotated) clip boundary. *)
+(* Fragment coverage against the clip polygon is the softened distance to the
+   nearest of its (up to [max_clip_edges]) inward-facing edge half-planes
+   [clipEdges[i] = (nx, ny, d)] (normalised, so [dot(pos, n) - d] is a signed
+   pixel distance), clamped to the interior — which antialiases the (rotated)
+   clip boundary. This describes any convex polygon; concave polygons are
+   instead pre-masked into the offscreen layer (see [with_scissor]) and passed
+   through here with no edges. *)
 let max_clip_edges = 16
 
 let clip_fs =
@@ -164,9 +166,86 @@ let get_scratch_rt () =
       scratch_rt := Some rt;
       rt
 
-(* Inward half-planes of the (convex) clip quad, as normalised [(normal, d)]
-   with [dot(p, normal) >= d] inside. The normal is oriented towards the quad's
-   centroid. *)
+(* The even-odd coverage mask used to clip against concave polygons. Sampled
+   bilinearly so its boundary gets a pixel of softening. Reused like the
+   scratch layer. *)
+let mask_rt : Raylib.RenderTexture.t option ref = ref None
+
+let get_mask_rt () =
+  let w = Raylib.get_screen_width () and h = Raylib.get_screen_height () in
+  let matches rt =
+    let t = Raylib.RenderTexture.texture rt in
+    Raylib.Texture.width t = w && Raylib.Texture.height t = h
+  in
+  match !mask_rt with
+  | Some rt when matches rt -> rt
+  | prev ->
+      Option.iter Raylib.unload_render_texture prev;
+      let rt = Raylib.load_render_texture w h in
+      Raylib.set_texture_filter
+        (Raylib.RenderTexture.texture rt)
+        Raylib.TextureFilter.Bilinear;
+      mask_rt := Some rt;
+      rt
+
+(* A polygon is convex when every consecutive turn has the same sign (collinear
+   corners allowed). Concave polygons need the mask path. *)
+let is_convex pts =
+  let n = Array.length pts in
+  let sign = ref 0.0 and convex = ref true in
+  for i = 0 to n - 1 do
+    let ax, ay = pts.(i) in
+    let bx, by = pts.((i + 1) mod n) in
+    let cx, cy = pts.((i + 2) mod n) in
+    let cr = ((bx -. ax) *. (cy -. ay)) -. ((cx -. ax) *. (by -. ay)) in
+    if cr *. !sign < 0.0 then convex := false;
+    if !sign = 0.0 then sign := cr
+  done;
+  !convex
+
+(* raylib culls non-counter-clockwise triangles, so emit each with a consistent
+   winding regardless of the polygon's orientation. *)
+let draw_triangle_ccw color (ax, ay) (bx, by) (cx, cy) =
+  let area = ((bx -. ax) *. (cy -. ay)) -. ((cx -. ax) *. (by -. ay)) in
+  let va = Raylib.Vector2.create ax ay in
+  let vb = Raylib.Vector2.create bx by in
+  let vc = Raylib.Vector2.create cx cy in
+  if area > 0.0 then Raylib.draw_triangle va vc vb color
+  else Raylib.draw_triangle va vb vc color
+
+(* Render the even-odd fill of [pts] into the mask, white inside. XOR-ing the
+   fan of (centroid, edge) triangles sets a pixel iff a ray to the centroid
+   crosses the boundary an odd number of times — i.e. iff it is inside, by the
+   even-odd rule — which holds for concave (and self-intersecting) polygons. *)
+let render_mask ~bx ~by ~bw ~bh pts =
+  let rt = get_mask_rt () in
+  let n = Array.length pts in
+  let ox = ref 0.0 and oy = ref 0.0 in
+  Array.iter
+    (fun (x, y) ->
+      ox := !ox +. x;
+      oy := !oy +. y)
+    pts;
+  let o = (!ox /. float n, !oy /. float n) in
+  Raylib.begin_texture_mode rt;
+  Raylib.begin_scissor_mode bx by bw bh;
+  Raylib.clear_background Raylib.Color.blank;
+  (* dst' = (1 - dst) * src: with white input each triangle toggles the pixels
+     it covers (XOR), in colour and alpha alike. *)
+  Raylib.Rlgl.set_blend_factors Raylib.Rlgl.BlendFactor.one_minus_dst_color
+    Raylib.Rlgl.BlendFactor.zero Raylib.Rlgl.BlendFunction.func_add;
+  Raylib.begin_blend_mode Raylib.BlendMode.Custom;
+  for i = 0 to n - 1 do
+    draw_triangle_ccw Raylib.Color.white o pts.(i) pts.((i + 1) mod n)
+  done;
+  Raylib.end_blend_mode ();
+  Raylib.end_scissor_mode ();
+  Raylib.end_texture_mode ();
+  rt
+
+(* Inward half-planes of the convex clip polygon, as normalised [(normal, d)]
+   with [dot(p, normal) >= d] inside. Each normal is oriented towards the
+   polygon's centroid. *)
 let clip_half_planes pts =
   let n = Array.length pts in
   let cx = ref 0. and cy = ref 0. in
@@ -222,6 +301,12 @@ let with_scissor ~io f =
              (src factor [one]) so the layer ends up with premultiplied colour
              over a correct alpha — needed to composite it back without the
              double-darkening a plain alpha blend into transparent would give. *)
+          let convex = is_convex pts in
+          (* Concave polygons can't be described by half-planes, so build an
+             even-odd coverage mask up front (its own render pass) and multiply
+             the layer by it below, leaving the shader a plain (unclipped)
+             composite. *)
+          let mask = if convex then None else Some (render_mask ~bx ~by ~bw ~bh pts) in
           Raylib.begin_texture_mode rt;
           Raylib.begin_scissor_mode bx by bw bh;
           Raylib.clear_background Raylib.Color.blank;
@@ -235,25 +320,54 @@ let with_scissor ~io f =
           Raylib.begin_blend_mode Raylib.BlendMode.Custom_separate;
           f ();
           Raylib.end_blend_mode ();
+          (* Keep only the layer inside the concave mask: [dst' = dst * src], so
+             mask=1 (inside) keeps the pixel and mask=0 (outside) clears it, in
+             colour and alpha alike. *)
+          Option.iter
+            begin fun mrt ->
+              Raylib.Rlgl.set_blend_factors Raylib.Rlgl.BlendFactor.zero
+                Raylib.Rlgl.BlendFactor.src_color
+                Raylib.Rlgl.BlendFunction.func_add;
+              Raylib.begin_blend_mode Raylib.BlendMode.Custom;
+              let m = Raylib.RenderTexture.texture mrt in
+              (* Both textures are stored bottom-up, so the negated source height
+                 flips the mask to match the layer it multiplies. *)
+              Raylib.draw_texture_rec m
+                (Raylib.Rectangle.create (float bx)
+                   (float (sh - by - bh))
+                   (float bw)
+                   (-.float bh))
+                (Raylib.Vector2.create (float bx) (float by))
+                Raylib.Color.white;
+              Raylib.end_blend_mode ()
+            end
+            mask;
           Raylib.end_scissor_mode ();
           Raylib.end_texture_mode ();
-          (* Composite it back through the clip shader (which fades out fragments
-             beyond the polygon), with a premultiplied-alpha blend. *)
+          (* Composite it back through the clip shader with a premultiplied-alpha
+             blend. Convex polygons carry their (antialiased) half-plane coverage
+             here; concave ones are already masked, so pass no edges. *)
           let s = get_clip_shader () in
-          let planes = clip_half_planes pts in
-          let n = min (Array.length planes) max_clip_edges in
-          Array.iteri
-            begin fun i (nx, ny, d) ->
-              if i < n then begin
-                Ctypes.CArray.set clip_buf_edges (3 * i) nx;
-                Ctypes.CArray.set clip_buf_edges ((3 * i) + 1) ny;
-                Ctypes.CArray.set clip_buf_edges ((3 * i) + 2) d
-              end
+          let n =
+            if convex then begin
+              let planes = clip_half_planes pts in
+              let n = min (Array.length planes) max_clip_edges in
+              Array.iteri
+                begin fun i (nx, ny, d) ->
+                  if i < n then begin
+                    Ctypes.CArray.set clip_buf_edges (3 * i) nx;
+                    Ctypes.CArray.set clip_buf_edges ((3 * i) + 1) ny;
+                    Ctypes.CArray.set clip_buf_edges ((3 * i) + 2) d
+                  end
+                end
+                planes;
+              Raylib.set_shader_value_v s.shader s.loc_edges
+                Ctypes.(CArray.start clip_buf_edges |> to_voidp)
+                Raylib.ShaderUniformDataType.Vec3 n;
+              n
             end
-            planes;
-          Raylib.set_shader_value_v s.shader s.loc_edges
-            Ctypes.(CArray.start clip_buf_edges |> to_voidp)
-            Raylib.ShaderUniformDataType.Vec3 n;
+            else 0
+          in
           set_int s.shader s.loc_count n;
           set_float s.shader s.loc_screen_height
             (float (Raylib.get_render_height ()));

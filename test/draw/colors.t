@@ -28,33 +28,36 @@ which drift in and out per environment. Both backends must agree on that set:
   #0AC90AFF
   #18687EFF
   #282828FF
+  #3296A3FF
   #40E0D0FF
   #41AA14FF
   #4B0082FF
+  #7E4B18FF
   #A32A32FF
   #C90A0AFF
+  #CB1E82FF
   #EE82EEFF
   #FF0000FF
   #FF00FFFF
   #FF7F50FF
 
-The two backends produce the same set of solid colors:
+The two backends produce the same colors, up to a least-significant bit on the
+multi-layer alpha blends inside the clip regions: the raylib backend composites
+each clipped draw through an 8-bit offscreen layer, one extra rounding step
+versus the browser's direct blend, so such blends can land a step apart. A real
+double-blend (an unintended extra layer) would be off by far more than 1 and so
+would still be reported here. Every color must therefore match one on the other
+backend within 1/255 on every channel, in both directions:
 
-  $ diff jsoo_colors raylib_colors
-  3,5c3,5
-  < #034EADFF
-  < #0929CBFF
-  < #09C232FF
-  ---
-  > #044EADFF
-  > #0A2ACBFF
-  > #0AC332FF
-  10c10
-  < #41A914FF
-  ---
-  > #41AA14FF
-  12c12
-  < #A22932FF
-  ---
-  > #A32A32FF
-  [1]
+  $ within1() {
+  >   awk 'BEGIN { s = "0123456789ABCDEF"; for (i = 1; i <= 16; i++) H[substr(s, i, 1)] = i - 1 }
+  >     function hx(x, p) { return (H[substr(x, p, 1)] * 16) + H[substr(x, p + 1, 1)] }
+  >     function near(a, b) { d = a - b; return (d < 0 ? -d : d) <= 1 }
+  >     NR == FNR { ref[FNR] = $0; n = FNR; next }
+  >     { for (i = 1; i <= n; i++)
+  >         if (near(hx($0,2), hx(ref[i],2)) && near(hx($0,4), hx(ref[i],4)) \
+  >          && near(hx($0,6), hx(ref[i],6)) && near(hx($0,8), hx(ref[i],8))) next
+  >       print "unmatched: " $0 }' "$2" "$1"
+  > }
+  $ within1 raylib_colors jsoo_colors
+  $ within1 jsoo_colors raylib_colors
