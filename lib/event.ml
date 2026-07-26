@@ -35,4 +35,8 @@ let wheel_delta ~io = Events_backend.wheel_delta !(io.event)
 let pressed_chars ~io = !(io.event).pressed_chars
 let down_chars ~io = !(io.event).down_chars
 let up_chars ~io = !(io.event).up_chars
-let snapshot ~(io : Gamelle_backend.io) = !(io.Gamelle_common.event)
+
+let snapshot ~(io : Gamelle_backend.io) =
+  let mouse_pos = mouse_pos ~io in
+  let mouse_x = Point.x mouse_pos and mouse_y = Point.y mouse_pos in
+  { !(io.Gamelle_common.event) with mouse_x; mouse_y }
