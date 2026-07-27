@@ -1,0 +1,43 @@
+(env
+ (dev
+  (flags
+   (:standard -warn-error -A))))
+
+(executable
+ (public_name clip)
+ (name clip_bin)
+ (modules clip_bin)
+ (libraries clip gamelle.raylib))
+
+(rule
+ (target clip_bin.ml)
+ (action
+  (with-stdout-to
+   clip_bin.ml
+   (run echo "include Clip"))))
+
+(executable
+ (name clip_js)
+ (modules clip_js)
+ (modes js)
+ (js_of_ocaml)
+ (libraries clip gamelle.jsoo))
+
+(rule
+ (target clip_js.ml)
+ (action
+  (with-stdout-to
+   clip_js.ml
+   (run echo "include Clip"))))
+
+(rule
+ (target clip.html)
+ (deps clip.template.html clip_js.bc.js)
+ (action
+  (with-stdout-to
+   clip.html
+   (run
+    %{bin:gamelle}
+    html
+    --template=clip.template.html
+    --script=clip_js.bc.js))))

@@ -1,7 +1,7 @@
 open Gamelle
 
 let w = 1000.
-let h = 1200.
+let h = 600.
 let cell_w = w /. 4.
 let cell_h = 300.
 
@@ -136,32 +136,6 @@ let () =
      (a 0.5 alpha blends to 147.5, which the backends round differently). *)
   Polygon.fill ~io ~color:(Color.rgb ~alpha:0.75 255 0 0) poly;
 
-  (* (3,1) Clip under rotation. The view is rotated around the cell center;
-     the filled circle sits strictly inside the (world-space) clip box, so it
-     must be fully visible, while the distant box must be clipped away
-     entirely. Content stays away from the clip border because the raylib
-     backend clips to the bounding box of the rotated clip region (its
-     scissor is axis-aligned), unlike the browser's exact clip path. *)
-  let b = cell 3 1 in
-  label ~io b "Clip + rotate";
-  let angle = 0.5 in
-  let center = Box.center b in
-  let rot_io =
-    let c' = Point.rotate_around ~center:Point.zero (-.angle) center in
-    let d = Vec.(c' - center) in
-    io |> View.rotate angle |> View.translate d
-  in
-  let clip_box =
-    Box.v_center
-      (Point.v (Box.x_middle b) (Box.y_middle b +. 20.))
-      (Size.v 160. 160.)
-  in
-  let rot_io = View.clip clip_box rot_io in
-  Circle.fill ~io:rot_io ~color:Color.turquoise
-    (Circle.v (Box.center clip_box) 70.);
-  Box.fill ~io:rot_io ~color:Color.red
-    (Box.v (Point.v (-1000.) (-1000.)) (Size.v 500. 500.));
-
   (* Arc + rounded box overlaid on the segment cell for a quick visual check. *)
   let b = cell 0 0 in
   let c = Box.center b in
@@ -179,83 +153,5 @@ let () =
   in
   Box.fill_rounded ~io ~color:Color.blue ~radius:24. rb;
   Box.draw_rounded ~io ~color:Color.white ~radius:24. rb;
-
-  (* Bottom row: an arbitrary (convex) clip polygon, exercised by every drawing
-     primitive so that clipping is checked against antialiasing and translucent
-     colors. The clip region is a squished hexagon (six edges — more than a
-     box's four); every primitive overflows it, and the polygon outline is drawn
-     unclipped on top so the clip boundary is visible. *)
-  let pi = 4.0 *. atan 1.0 in
-  let poly_cx, poly_cy = (w /. 2., 750.) in
-  let rx, ry = (330., 120.) in
-  let clip_poly =
-    Polygon.v
-      (List.init 6 (fun i ->
-           let a = (float i /. 6.0 *. 2.0 *. pi) +. 0.35 in
-           Point.v (poly_cx +. (rx *. cos a)) (poly_cy +. (ry *. sin a))))
-  in
-  label ~io (cell 0 2) "Polygon clip (AA + alpha)";
-  let cio = View.clip_polygon clip_poly io in
-  (* A translucent full-width box: alpha must blend exactly once, and only
-     inside the polygon. *)
-  Box.fill ~io:cio
-    ~color:(Color.rgb ~alpha:0.4 0 200 255)
-    (Box.v (Point.v 0. 610.) (Size.v w 280.));
-  (* Overlapping translucent circles: overlaps should double-blend, but the
-     clip boundary must not add any extra blending. *)
-  List.iter
-    (fun (dx, (r, g, b)) ->
-      Circle.fill ~io:cio
-        ~color:(Color.rgb ~alpha:0.6 r g b)
-        (Circle.v (Point.v (poly_cx +. dx) poly_cy) 95.))
-    [ (-120., (255, 0, 0)); (0., (0, 255, 0)); (120., (0, 0, 255)) ];
-  (* Antialiased diagonal lines crossing the boundary. *)
-  for i = 0 to 10 do
-    let x = 100. +. (float i *. 80.) in
-    Segment.draw ~io:cio ~color:Color.white
-      (Segment.v (Point.v x 600.) (Point.v (x +. 120.) 900.))
-  done;
-  (* Bitmap and text straddling the boundary. *)
-  draw ~io:cio Assets.camel ~at:(Point.v 60. 690.);
-  Text.draw ~io:cio ~color:Color.yellow ~size:40 ~at:(Point.v 220. 720.)
-    "Clipped text overflowing the polygon!";
-  Arc.fill ~io:cio
-    ~color:(Color.rgb ~alpha:0.7 255 180 0)
-    (Arc.v (Point.v (w -. 120.) poly_cy) 90. ~start:0. ~stop:(1.4 *. pi));
-  (* The clip boundary itself, drawn unclipped. *)
-  Polygon.draw ~io ~color:Color.white clip_poly;
-
-  (* Fourth row: a *concave* clip polygon — a five-pointed star. Half-planes
-     cannot describe it, so the raylib backend clips it through an even-odd
-     coverage mask; the browser uses its native non-zero path clip. Same battery
-     of overflowing primitives (translucent fills, AA lines, text, bitmap). *)
-  let star_cx, star_cy = (w /. 2., 1050.) in
-  let star =
-    Polygon.v
-      (List.init 10 (fun i ->
-           let r = if i mod 2 = 0 then 140. else 58. in
-           let a = (float i /. 10.0 *. 2.0 *. pi) -. (pi /. 2.0) in
-           Point.v (star_cx +. (r *. cos a)) (star_cy +. (r *. sin a))))
-  in
-  label ~io (cell 0 3) "Concave clip (star)";
-  let sio = View.clip_polygon star io in
-  Box.fill ~io:sio
-    ~color:(Color.rgb ~alpha:0.4 255 128 0)
-    (Box.v (Point.v 0. 910.) (Size.v w 280.));
-  List.iter
-    (fun (dx, (r, g, b)) ->
-      Circle.fill ~io:sio
-        ~color:(Color.rgb ~alpha:0.6 r g b)
-        (Circle.v (Point.v (star_cx +. dx) star_cy) 80.))
-    [ (-90., (0, 200, 255)); (90., (255, 0, 200)) ];
-  for i = 0 to 10 do
-    let x = 100. +. (float i *. 80.) in
-    Segment.draw ~io:sio ~color:Color.white
-      (Segment.v (Point.v x 900.) (Point.v (x +. 100.) 1200.))
-  done;
-  Text.draw ~io:sio ~color:Color.yellow ~size:34 ~at:(Point.v 300. 1035.)
-    "Clipped to a star!";
-  (* The concave boundary, drawn unclipped. *)
-  Polygon.draw ~io ~color:Color.white star;
 
   ()

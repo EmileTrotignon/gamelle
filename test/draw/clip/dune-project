@@ -1,0 +1,9 @@
+(lang dune 3.7)
+
+(name clip)
+
+(package
+  (name clip)
+  (synopsis "clip")
+  (depends
+    gamelle))
