@@ -73,7 +73,7 @@ void main() {
    distance to the polygon — the distance to the nearest edge, made positive
    inside via an even-odd ray-crossing test — and softens it into a coverage
    value, which antialiases the boundary for convex and concave polygons alike. *)
-let max_clip_edges = 64
+let max_clip_edges = 256
 
 let clip_fs =
   Printf.sprintf
@@ -231,8 +231,17 @@ let with_scissor ~io f =
           let s = get_clip_shader () in
           let np = Array.length pts in
           let n = min np max_clip_edges in
+          (* Emit the [n] edges of the *closed* polygon (vertex i -> vertex
+             (i+1) mod n). When the polygon fits within the cap [n = np] and
+             every vertex is used exactly; otherwise the vertices are evenly
+             subsampled. Closing over [mod n] is what matters: truncating to an
+             open edge list (as a naive [mod np] over a shortened loop would)
+             leaves the shader's even-odd fill without a boundary on one side,
+             so the clip leaks — this is the bug that broke oedipus's
+             many-vertex visibility polygons. *)
+          let vx k = if n = np then pts.(k) else pts.(k * np / n) in
           for i = 0 to n - 1 do
-            let ax, ay = pts.(i) and bx', by' = pts.((i + 1) mod np) in
+            let ax, ay = vx i and bx', by' = vx ((i + 1) mod n) in
             Ctypes.CArray.set clip_buf_edges (4 * i) ax;
             Ctypes.CArray.set clip_buf_edges ((4 * i) + 1) ay;
             Ctypes.CArray.set clip_buf_edges ((4 * i) + 2) bx';
