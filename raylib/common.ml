@@ -170,7 +170,9 @@ let ensure_edge_capacity n =
     | None -> ());
     let buf = Ctypes.CArray.make Ctypes.float (4 * n) in
     let id =
-      Raylib.Rlgl.load_texture Ctypes.(CArray.start buf |> to_voidp) n 1 rgba32f 1
+      Raylib.Rlgl.load_texture
+        Ctypes.(CArray.start buf |> to_voidp)
+        n 1 rgba32f 1
     in
     clip_edges_buf := buf;
     clip_edges_tex :=
@@ -285,7 +287,9 @@ let get_clip_mask poly pts bx by bw bh =
    orientation, so multiplying it into [scratch_rt] uses the same mapping. *)
 let draw_rt_bbox t bx by bw bh sh =
   Raylib.draw_texture_rec t
-    (Raylib.Rectangle.create (float bx) (float (sh - by - bh)) (float bw)
+    (Raylib.Rectangle.create (float bx)
+       (float (sh - by - bh))
+       (float bw)
        (-.float bh))
     (Raylib.Vector2.create (float bx) (float by))
     Raylib.Color.white

@@ -86,7 +86,8 @@ let battery ~io b =
          (Point.v (x +. 120.) (Box.y_bottom b -. 10.)))
   done;
   draw ~io Assets.camel ~at:(Point.v 60. (cy -. 40.));
-  Text.draw ~io ~color:Color.yellow ~size:34 ~at:(Point.v 300. (cy -. 20.))
+  Text.draw ~io ~color:Color.yellow ~size:34
+    ~at:(Point.v 300. (cy -. 20.))
     "Clipped, overflowing!"
 
 let () =

@@ -49,6 +49,7 @@
 ; geckodriver port for parallel-safe runs.
 ;
 ;   dune build @draw_screenshot_clip --auto-promote
+
 (rule
  (alias draw_screenshot_clip)
  (targets clip_compare.png clip_diff.png clip_raylib.png clip_jsoo.png)
