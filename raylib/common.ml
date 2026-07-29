@@ -96,17 +96,24 @@ float segDist(vec2 p, vec2 a, vec2 b) {
 void main() {
     vec2 pos = vec2(gl_FragCoord.x, screenHeight - gl_FragCoord.y);
     float dist = 1e20;
-    bool inside = false;
+    // Non-zero winding number (matching the browser's canvas clip, whose
+    // default fill rule is non-zero): a horizontal ray to +x, each crossing
+    // counted +1 upward / -1 downward via the isLeft sign. An even-odd test
+    // would instead cancel self-overlapping regions (a visibility polygon's
+    // crossing rays, a pentagram's centre) into holes.
+    int wind = 0;
     for (int i = 0; i < clipCount; i++) {
         vec2 a = clipEdges[i].xy;
         vec2 b = clipEdges[i].zw;
         dist = min(dist, segDist(pos, a, b));
-        // even-odd ray crossing (a horizontal ray to +x)
-        if ((a.y > pos.y) != (b.y > pos.y)) {
-            float xint = a.x + (((pos.y - a.y) / (b.y - a.y)) * (b.x - a.x));
-            if (pos.x < xint) inside = !inside;
+        float side = ((b.x - a.x) * (pos.y - a.y)) - ((pos.x - a.x) * (b.y - a.y));
+        if (a.y <= pos.y) {
+            if (b.y > pos.y && side > 0.0) wind++;
+        } else {
+            if (b.y <= pos.y && side < 0.0) wind--;
         }
     }
+    bool inside = wind != 0;
     float cov = smoothstep(-0.75, 0.75, inside ? dist : -dist);
     // The texture holds premultiplied colour (drawn onto transparent black),
     // and is composited with a premultiplied blend, so scale all four channels

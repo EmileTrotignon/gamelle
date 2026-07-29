@@ -9,18 +9,18 @@ polygon's edges.
 
 The high-vertex clips once broke because the shader capped the edge list at 64
 and left it *open* (fixed by raising the cap to 256 and closing the loop). The
-pentagram exposes a second raylib-only bug: the shader decides inside/outside
+pentagram once exposed a second raylib-only bug: the shader decided inside/outside
 with an even-odd rule, but the browser's canvas clip uses the non-zero winding
 rule (its default). Where a polygon self-overlaps — the pentagram's centre
 pentagon, or two crossing rays of a visibility polygon near the player — even-odd
-cancels the double coverage into a hole while non-zero keeps it filled. That is
-the gap oedipus showed above the player, flickering as the rays reordered.
-
-Until the shader uses non-zero winding, the pentagram's hollow centre stands out
-here (the other clips are at the antialiasing-jitter floor):
+cancelled the double coverage into a hole while non-zero keeps it filled. That was
+the gap oedipus showed above the player, flickering as the rays reordered. The
+shader now uses non-zero winding too, so every clip is back at the
+antialiasing-jitter floor (the plain count runs a little higher than the basic
+scene only because the pentagram adds many antialiased edges):
 
   $ odiff clip_jsoo.png clip_raylib.png 2>&1 | awk '/identical/{print 0} /different/{print int($2/100)}'
-  140
+  83
 
   $ odiff --antialiasing clip_jsoo.png clip_raylib.png 2>&1 | awk '/identical/{print 0} /different/{print int($2/100)}'
-  75
+  20
