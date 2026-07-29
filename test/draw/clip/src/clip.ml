@@ -15,7 +15,7 @@ open Gamelle
    view) easily has more than a hundred vertices. *)
 
 let w = 1000.
-let h = 1800.
+let h = 2100.
 let band_h = 300.
 let band row = Box.v (Point.v 0. (float row *. band_h)) (Size.v w band_h)
 
@@ -37,6 +37,20 @@ let ngon ~center ~radius ~n =
          Point.v
            (Point.x center +. (r *. cos a))
            (Point.y center +. (r *. sin a))))
+
+(* A pentagram: five points connected in {5/2} order, so the path self-
+   intersects and its centre pentagon is enclosed twice. The browser's canvas
+   clip fills it with the non-zero winding rule (its default), so the centre is
+   inside; an even-odd test instead cancels the double coverage and punches a
+   hole there. This is the shape class oedipus's visibility polygons hit when
+   two rays cross near the player. *)
+let pentagram ~center ~radius =
+  Polygon.v
+    (List.init 5 (fun i ->
+         let a = (-.pi /. 2.0) +. (float i *. 4.0 *. pi /. 5.0) in
+         Point.v
+           (Point.x center +. (radius *. cos a))
+           (Point.y center +. (radius *. sin a))))
 
 (* A raycast-style "visibility" fan: rays of varying length from a centre, the
    silhouette a player would see. Many vertices, non-convex. *)
@@ -171,5 +185,16 @@ let () =
   let cio = View.clip_polygon poly mio in
   Box.fill ~io:cio ~color:Color.orange (Box.v Point.zero (Size.v 400. 400.));
   Polygon.draw ~io:mio ~color:Color.white poly;
+
+  (* Band 6: a self-overlapping clip (pentagram). The centre pentagon is wound
+     twice, so it must stay filled under the non-zero winding rule the browser
+     uses; an even-odd clip leaves a hole there. This is the raylib-only bug that
+     punched a gap out of oedipus's visibility polygon near the player. *)
+  let b = band 6 in
+  label ~io b "Self-overlapping clip (pentagram)";
+  let star = pentagram ~center:(Box.center b) ~radius:130. in
+  let cio = View.clip_polygon star io in
+  Box.fill ~io:cio ~color:Color.magenta b;
+  Polygon.draw ~io ~color:Color.white star;
 
   ()
