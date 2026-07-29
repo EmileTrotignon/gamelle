@@ -15,12 +15,11 @@ subsampled anything larger to fit — dropping corners and distorting the bounda
 A real visibility polygon has several hundred vertices (band 4 uses ~400), so
 oedipus lost a wedge of the visible area next to the player where a dropped
 corner let the boundary short-circuit. The edges now travel through a texture, so
-every vertex is kept like the browser and the ~400-edge star fills completely.
-Every clip is back at the antialiasing-jitter floor (a touch higher than the
-basic scene because the ~400-spike star is almost all antialiased edge):
+every vertex is kept like the browser and the ~400-vertex blob fills completely.
+Every clip is back at the antialiasing-jitter floor:
 
   $ odiff clip_jsoo.png clip_raylib.png 2>&1 | awk '/identical/{print 0} /different/{print int($2/100)}'
-  104
+  76
 
   $ odiff --antialiasing clip_jsoo.png clip_raylib.png 2>&1 | awk '/identical/{print 0} /different/{print int($2/100)}'
-  34
+  20

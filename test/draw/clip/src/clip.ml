@@ -53,13 +53,18 @@ let pentagram ~center ~radius =
            (Point.y center +. (radius *. sin a))))
 
 (* A raycast-style "visibility" fan: rays of varying length from a centre, the
-   silhouette a player would see. Many vertices, non-convex. *)
+   silhouette a player would see. Many vertices, non-convex. Each radius spans a
+   contiguous arc (a wall the player sees at a roughly constant distance), with a
+   sharp radial jump between arcs (an occluder edge) — so the polygon is a large,
+   chunky, non-convex blob densely sampled at [n] vertices, not a high-frequency
+   comb. This is what a real visibility polygon looks like, and what makes a
+   dropped-corner/subsample clip bug lose a visible wedge of the fill. *)
 let visibility ~center ~n =
   let radii = [| 130.; 80.; 120.; 55.; 105.; 140.; 95.; 65.; 125.; 85. |] in
   Polygon.v
     (List.init n (fun i ->
          let a = float i /. float n *. 2.0 *. pi in
-         let r = radii.(i mod Array.length radii) in
+         let r = radii.(i * Array.length radii / n) in
          Point.v
            (Point.x center +. (r *. cos a))
            (Point.y center +. (r *. sin a))))
@@ -167,7 +172,7 @@ let () =
      reaches (three rays per wall corner and crossing, plus arc rays). It is well
      past the 256-edge cap the shader can pass, so a backend that subsamples the
      polygon to fit drops corners and distorts the boundary; only a backend that
-     handles every vertex (like the browser) fills the whole star. A translucent
+     handles every vertex (like the browser) fills the whole blob. A translucent
      box overflows it; only the interior should be lit. *)
   let b = band 4 in
   label ~io b "Visibility clip (~400 edges)";
