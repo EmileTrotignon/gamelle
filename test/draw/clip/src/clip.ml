@@ -161,12 +161,16 @@ let () =
   Box.fill ~io:cio ~color:Color.red b;
   Polygon.draw ~io ~color:Color.white poly;
 
-  (* Band 4: a raycast-style visibility polygon, ~130 vertices, non-convex — the
-     shape oedipus actually clips against. A translucent box overflows it; only
-     the interior should be lit. *)
+  (* Band 4: a raycast-style visibility polygon, ~400 vertices, non-convex — the
+     shape oedipus actually clips against, at the vertex count a real level
+     reaches (three rays per wall corner and crossing, plus arc rays). It is well
+     past the 256-edge cap the shader can pass, so a backend that subsamples the
+     polygon to fit drops corners and distorts the boundary; only a backend that
+     handles every vertex (like the browser) fills the whole star. A translucent
+     box overflows it; only the interior should be lit. *)
   let b = band 4 in
-  label ~io b "Visibility clip (~130 edges)";
-  let vis = visibility ~center:(Box.center b) ~n:130 in
+  label ~io b "Visibility clip (~400 edges)";
+  let vis = visibility ~center:(Box.center b) ~n:400 in
   let cio = View.clip_polygon vis io in
   Box.fill ~io:cio ~color:(Color.rgb ~alpha:0.85 0 200 255) b;
   Polygon.draw ~io ~color:Color.white vis;
