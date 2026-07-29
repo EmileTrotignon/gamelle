@@ -19,8 +19,8 @@ let test =
      scene is captured on any machine. *)
   let* size =
     execute
-      "var c = document.querySelector('canvas').getBoundingClientRect(); return \
-       [c.width, c.height];"
+      "var c = document.querySelector('canvas').getBoundingClientRect(); \
+       return [c.width, c.height];"
   in
   let w, h =
     match size with `List [ a; b ] -> (num a, num b) | _ -> (0., 0.)
