@@ -159,23 +159,101 @@ let set_int shader loc v =
     Ctypes.(CArray.start clip_buf_int |> to_voidp)
     Raylib.ShaderUniformDataType.Int
 
-(* The screen-sized offscreen layer clipped draws are rendered into. Reused
-   across draws and reallocated only when the screen size changes. *)
+(* Two screen-sized offscreen layers, reused across draws and reallocated only
+   when the screen size changes: [scratch_rt] receives each clipped draw, and
+   [mask_rt] holds the current clip polygon's antialiased coverage. *)
 let scratch_rt : Raylib.RenderTexture.t option ref = ref None
+let mask_rt : Raylib.RenderTexture.t option ref = ref None
 
-let get_scratch_rt () =
+let get_rt slot =
   let w = Raylib.get_screen_width () and h = Raylib.get_screen_height () in
   let matches rt =
     let t = Raylib.RenderTexture.texture rt in
     Raylib.Texture.width t = w && Raylib.Texture.height t = h
   in
-  match !scratch_rt with
+  match !slot with
   | Some rt when matches rt -> rt
   | prev ->
       Option.iter Raylib.unload_render_texture prev;
       let rt = Raylib.load_render_texture w h in
-      scratch_rt := Some rt;
+      slot := Some rt;
       rt
+
+(* Load the clip polygon's edges into the clip shader as its [n] closed edges
+   (vertex i -> vertex (i+1) mod n). Every vertex is used when the polygon fits
+   the cap [n = np]; otherwise the vertices are evenly subsampled. Closing over
+   [mod n] is what matters: truncating to an open edge list (as a naive [mod np]
+   over a shortened loop would) leaves the shader's even-odd fill without a
+   boundary on one side, so the clip leaks — the bug that broke oedipus's
+   many-vertex visibility polygons. *)
+let set_clip_edges s pts =
+  let np = Array.length pts in
+  let n = min np max_clip_edges in
+  let vx k = if n = np then pts.(k) else pts.(k * np / n) in
+  for i = 0 to n - 1 do
+    let ax, ay = vx i and bx', by' = vx ((i + 1) mod n) in
+    Ctypes.CArray.set clip_buf_edges (4 * i) ax;
+    Ctypes.CArray.set clip_buf_edges ((4 * i) + 1) ay;
+    Ctypes.CArray.set clip_buf_edges ((4 * i) + 2) bx';
+    Ctypes.CArray.set clip_buf_edges ((4 * i) + 3) by'
+  done;
+  Raylib.set_shader_value_v s.shader s.loc_edges
+    Ctypes.(CArray.start clip_buf_edges |> to_voidp)
+    Raylib.ShaderUniformDataType.Vec4 n;
+  set_int s.shader s.loc_count n;
+  set_float s.shader s.loc_screen_height (float (Raylib.get_render_height ()))
+
+(* The clip polygon whose coverage currently sits in [mask_rt], and the screen
+   size it was built for. A whole clip region reuses one [io.clip] polygon for
+   all its draws, so keying the cached mask on that polygon's identity runs the
+   (per-pixel, per-edge) coverage pass once per region rather than once per draw
+   — which is what made oedipus's many-vertex visibility clip slow. *)
+let mask_poly : Geometry.Polygon.t option ref = ref None
+let mask_size : (int * int) ref = ref (0, 0)
+
+(* Render [poly]'s antialiased coverage into [mask_rt] over its bounding box,
+   memoised on the polygon's identity and the screen size. The signed-distance
+   shader (its per-fragment loop over all the polygon edges) runs only here. *)
+let get_clip_mask poly pts bx by bw bh =
+  let sw = Raylib.get_screen_width () and sh = Raylib.get_screen_height () in
+  let cached =
+    (match !mask_poly with Some p -> p == poly | None -> false)
+    && !mask_size = (sw, sh)
+  in
+  let mask = get_rt mask_rt in
+  if not cached then begin
+    let s = get_clip_shader () in
+    Raylib.begin_texture_mode mask;
+    Raylib.begin_scissor_mode bx by bw bh;
+    Raylib.clear_background Raylib.Color.blank;
+    set_clip_edges s pts;
+    (* Write the coverage straight into the mask (replace, not blend, so it is
+       stored as-is): a white quad through the clip shader outputs (cov,cov,cov,
+       cov) per fragment. *)
+    Raylib.Rlgl.set_blend_factors Raylib.Rlgl.BlendFactor.one
+      Raylib.Rlgl.BlendFactor.zero Raylib.Rlgl.BlendFunction.func_add;
+    Raylib.begin_blend_mode Raylib.BlendMode.Custom;
+    Raylib.begin_shader_mode s.shader;
+    Raylib.draw_rectangle bx by bw bh Raylib.Color.white;
+    Raylib.end_shader_mode ();
+    Raylib.end_blend_mode ();
+    Raylib.end_scissor_mode ();
+    Raylib.end_texture_mode ();
+    mask_poly := Some poly;
+    mask_size := (sw, sh)
+  end;
+  mask
+
+(* Draw a render texture's bbox region back at the same screen location. The
+   render texture is stored bottom-up, so the source height is negated to flip
+   it into screen orientation; the mask (also a render texture) shares that
+   orientation, so multiplying it into [scratch_rt] uses the same mapping. *)
+let draw_rt_bbox t bx by bw bh sh =
+  Raylib.draw_texture_rec t
+    (Raylib.Rectangle.create (float bx) (float (sh - by - bh)) (float bw)
+       (-.float bh))
+    (Raylib.Vector2.create (float bx) (float by))
+    Raylib.Color.white
 
 let with_scissor ~io f =
   match io.clip with
@@ -205,7 +283,8 @@ let with_scissor ~io f =
           min (int_of_float (Float.min !maxy (float sh)) + 2 - by) (sh - by)
         in
         if bw > 0 && bh > 0 then begin
-          let rt = get_scratch_rt () in
+          let mask = get_clip_mask poly pts bx by bw bh in
+          let rt = get_rt scratch_rt in
           (* Render the draw into the (bbox-cleared) offscreen layer. Colour is
              composited normally, but the alpha channel accumulates as coverage
              (src factor [one]) so the layer ends up with premultiplied colour
@@ -224,48 +303,22 @@ let with_scissor ~io f =
           Raylib.begin_blend_mode Raylib.BlendMode.Custom_separate;
           f ();
           Raylib.end_blend_mode ();
+          (* Multiply the drawn layer by the clip coverage: with source factor
+             [zero] and destination factor [src_color], each channel becomes
+             [scratch * mask] — the premultiplied colour scaled by coverage,
+             exactly what compositing through the clip shader used to produce,
+             but now a single cheap texture multiply instead of a per-fragment
+             edge loop. *)
+          Raylib.Rlgl.set_blend_factors Raylib.Rlgl.BlendFactor.zero
+            Raylib.Rlgl.BlendFactor.src_color Raylib.Rlgl.BlendFunction.func_add;
+          Raylib.begin_blend_mode Raylib.BlendMode.Custom;
+          draw_rt_bbox (Raylib.RenderTexture.texture mask) bx by bw bh sh;
+          Raylib.end_blend_mode ();
           Raylib.end_scissor_mode ();
           Raylib.end_texture_mode ();
-          (* Composite it back through the clip shader (signed-distance coverage
-             against the polygon edges) with a premultiplied-alpha blend. *)
-          let s = get_clip_shader () in
-          let np = Array.length pts in
-          let n = min np max_clip_edges in
-          (* Emit the [n] edges of the *closed* polygon (vertex i -> vertex
-             (i+1) mod n). When the polygon fits within the cap [n = np] and
-             every vertex is used exactly; otherwise the vertices are evenly
-             subsampled. Closing over [mod n] is what matters: truncating to an
-             open edge list (as a naive [mod np] over a shortened loop would)
-             leaves the shader's even-odd fill without a boundary on one side,
-             so the clip leaks — this is the bug that broke oedipus's
-             many-vertex visibility polygons. *)
-          let vx k = if n = np then pts.(k) else pts.(k * np / n) in
-          for i = 0 to n - 1 do
-            let ax, ay = vx i and bx', by' = vx ((i + 1) mod n) in
-            Ctypes.CArray.set clip_buf_edges (4 * i) ax;
-            Ctypes.CArray.set clip_buf_edges ((4 * i) + 1) ay;
-            Ctypes.CArray.set clip_buf_edges ((4 * i) + 2) bx';
-            Ctypes.CArray.set clip_buf_edges ((4 * i) + 3) by'
-          done;
-          Raylib.set_shader_value_v s.shader s.loc_edges
-            Ctypes.(CArray.start clip_buf_edges |> to_voidp)
-            Raylib.ShaderUniformDataType.Vec4 n;
-          set_int s.shader s.loc_count n;
-          set_float s.shader s.loc_screen_height
-            (float (Raylib.get_render_height ()));
-          let t = Raylib.RenderTexture.texture rt in
+          (* Composite the clipped layer back with a premultiplied-alpha blend. *)
           Raylib.begin_blend_mode Raylib.BlendMode.Alpha_premultiply;
-          Raylib.begin_shader_mode s.shader;
-          (* The render texture is stored bottom-up, so the source height is
-             negated to flip it back to screen orientation. *)
-          Raylib.draw_texture_rec t
-            (Raylib.Rectangle.create (float bx)
-               (float (sh - by - bh))
-               (float bw)
-               (-.float bh))
-            (Raylib.Vector2.create (float bx) (float by))
-            Raylib.Color.white;
-          Raylib.end_shader_mode ();
+          draw_rt_bbox (Raylib.RenderTexture.texture rt) bx by bw bh sh;
           Raylib.end_blend_mode ()
         end
       end
