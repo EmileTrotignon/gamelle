@@ -63,7 +63,7 @@
    (>= 0.6))
   conf-sdl2-gfx
   (raylib
-   (>= 2.0.0))
+   (>= 2.2.1))
   (ctypes-foreign
    (>= 0.21.1))
   (lwt

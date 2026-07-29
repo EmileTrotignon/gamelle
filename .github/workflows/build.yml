@@ -2,6 +2,7 @@ name: Build
 
 on:
   push:
+    branches: [master]
   pull_request:
 
 permissions: read-all
@@ -66,3 +67,17 @@ jobs:
 
       - name: Test
         run: opam exec -- dune runtest
+
+      # On failure, surface the actual backend renders so a screenshot mismatch
+      # can be diagnosed without guessing (e.g. the raylib clip breaking under
+      # CI's software OpenGL). dune builds these under _build even when runtest
+      # fails; the `.corrected` cram files carry the observed diff counts.
+      - name: Upload screenshots on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: draw-screenshots
+          if-no-files-found: ignore
+          path: |
+            _build/default/test/draw/*.png
+            _build/default/test/draw/*.t.corrected

@@ -44,6 +44,35 @@
    %{project_root}/test/raylib_screenshot.sh
    4444)))
 
+; The clipping scene, kept separate from the basic drawing scene. Same pipeline,
+; a distinct output prefix (so both scenes' images coexist here) and its own
+; geckodriver port for parallel-safe runs.
+;
+;   dune build @draw_screenshot_clip --auto-promote
+
+(rule
+ (alias draw_screenshot_clip)
+ (targets clip_compare.png clip_diff.png clip_raylib.png clip_jsoo.png)
+ (mode promote)
+ (deps
+  screenshot.sh
+  clip/clip_bin.exe
+  clip/clip.html
+  (file %{project_root}/test/cram/screenshot/screenshot.exe)
+  (file %{project_root}/data/FreeMono.ttf)
+  (file %{project_root}/test/raylib_screenshot.sh))
+ (action
+  (run
+   bash
+   screenshot.sh
+   clip/clip_bin.exe
+   clip/clip.html
+   %{project_root}/test/cram/screenshot/screenshot.exe
+   %{project_root}/data/FreeMono.ttf
+   %{project_root}/test/raylib_screenshot.sh
+   4445
+   clip_)))
+
 (cram
  (package gamelle)
- (deps raylib.png jsoo.png))
+ (deps raylib.png jsoo.png clip_raylib.png clip_jsoo.png))

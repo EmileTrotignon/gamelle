@@ -33,7 +33,7 @@ depopts: [
   "tsdl-mixer" {>= "0.6"}
   "tsdl-ttf" {>= "0.6"}
   "conf-sdl2-gfx"
-  "raylib" {>= "2.0.0"}
+  "raylib" {>= "2.2.1"}
   "ctypes-foreign" {>= "0.21.1"}
   "lwt" {>= "5.9.0"}
   "uri" {>= "4.0.0"}

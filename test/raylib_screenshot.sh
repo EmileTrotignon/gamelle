@@ -51,11 +51,21 @@ trap 'rm -rf "$FBDIR"' EXIT
 # GAMELLE_WINDOW_SIZE: open the window at the capture size directly, so the very
 # first frame is already the right size and placement (no one-frame resize
 # transient to accidentally capture — see raylib/gamelle_backend.ml).
+# -w 10: seconds to allow Xvfb to come up before xvfb-run gives up on it. The
+# comparison rules run in parallel, so several software-GL programs and their
+# Xvfb servers start at once and contend for the CPU; under that load a software
+# Xvfb can take a couple of seconds just to bind its socket. A tight ceiling (the
+# old -w 1) made xvfb-run intermittently declare Xvfb "failed to start" in CI, so
+# we keep a wide margin — on a fast, unloaded start xvfb-run returns as soon as
+# the server is ready, so the ceiling costs nothing there.
+# -e /dev/stderr: route Xvfb's own output (and xauth errors) to stderr instead of
+# the default /dev/null, so a genuine startup failure shows *why* in the CI log
+# (e.g. a display-lock collision) rather than a bare "failed to start".
 GAMELLE_NO_AUDIO=1 \
   GAMELLE_WINDOW_SIZE="${W}x${H}" \
   LIBGL_ALWAYS_SOFTWARE=1 \
   GALLIUM_DRIVER=softpipe \
-  xvfb-run -w 1 -n "$SERVERNUM" -s "-screen 0 ${SCREEN}x${SCREEN}x24 -fbdir $FBDIR" \
+  xvfb-run -w 10 -e /dev/stderr -n "$SERVERNUM" -s "-screen 0 ${SCREEN}x${SCREEN}x24 -fbdir $FBDIR" \
   bash -c '
     out="$1"; fbdir="$2"; w="$3"; h="$4"; offx="$5"; offy="$6"; shift 6
     "$@" &
