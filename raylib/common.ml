@@ -68,22 +68,23 @@ void main() {
 }
 |glsl}
 
-(* The clip polygon is passed as its edges [clipEdges[i] = (ax, ay, bx, by)] (up
-   to [max_clip_edges] of them). Per fragment the shader takes the signed
-   distance to the polygon — the distance to the nearest edge, made positive
-   inside via an even-odd ray-crossing test — and softens it into a coverage
-   value, which antialiases the boundary for convex and concave polygons alike. *)
-let max_clip_edges = 256
-
+(* The clip polygon is passed as its edges in a texture, one edge [(ax, ay, bx,
+   by)] per RGBA32F texel (see [set_clip_edges]) — a texture rather than a
+   uniform array so any number of edges fits, matching the browser, which draws
+   every vertex (a subsampled uniform array would drop corners and distort the
+   boundary; oedipus's visibility polygons run to several hundred vertices). Per
+   fragment the shader takes the signed distance to the polygon — the distance to
+   the nearest edge, made positive inside via a non-zero winding test — and
+   softens it into a coverage value, antialiasing the boundary. The whole loop
+   runs once per clip region (the coverage is cached in a mask), not per draw. *)
 let clip_fs =
-  Printf.sprintf
-    {glsl|
+  {glsl|
 #version 330
 precision mediump float;
 in vec2 fragTexCoord;
 in vec4 fragColor;
 uniform sampler2D texture0;
-uniform vec4 clipEdges[%d];
+uniform sampler2D clipEdgesTex;
 uniform int clipCount;
 uniform float screenHeight;
 out vec4 finalColor;
@@ -103,8 +104,9 @@ void main() {
     // crossing rays, a pentagram's centre) into holes.
     int wind = 0;
     for (int i = 0; i < clipCount; i++) {
-        vec2 a = clipEdges[i].xy;
-        vec2 b = clipEdges[i].zw;
+        vec4 e = texelFetch(clipEdgesTex, ivec2(i, 0), 0);
+        vec2 a = e.xy;
+        vec2 b = e.zw;
         dist = min(dist, segDist(pos, a, b));
         float side = ((b.x - a.x) * (pos.y - a.y)) - ((pos.x - a.x) * (b.y - a.y));
         if (a.y <= pos.y) {
@@ -122,11 +124,10 @@ void main() {
     finalColor = texel * cov;
 }
 |glsl}
-    max_clip_edges
 
 type clip_shader = {
   shader : Raylib.Shader.t;
-  loc_edges : Raylib.ShaderLoc.t;
+  loc_edges_tex : Raylib.ShaderLoc.t;
   loc_count : Raylib.ShaderLoc.t;
   loc_screen_height : Raylib.ShaderLoc.t;
 }
@@ -142,7 +143,7 @@ let get_clip_shader () =
       let s =
         {
           shader;
-          loc_edges = loc "clipEdges";
+          loc_edges_tex = loc "clipEdgesTex";
           loc_count = loc "clipCount";
           loc_screen_height = loc "screenHeight";
         }
@@ -152,7 +153,32 @@ let get_clip_shader () =
 
 let clip_buf1 = Ctypes.CArray.make Ctypes.float 1
 let clip_buf_int = Ctypes.CArray.make Ctypes.int32_t 1
-let clip_buf_edges = Ctypes.CArray.make Ctypes.float (4 * max_clip_edges)
+
+(* The clip edges, uploaded to a 1-row RGBA32F texture ([clipEdgesTex] above):
+   one edge per texel, [(ax, ay)] in RG and [(bx, by)] in BA. Grown on demand so
+   any vertex count fits. [PIXELFORMAT_UNCOMPRESSED_R32G32B32A32] is raylib's
+   pixel-format enum value 10. *)
+let rgba32f = 10
+let clip_edges_cap = ref 0
+let clip_edges_buf = ref (Ctypes.CArray.make Ctypes.float 0)
+let clip_edges_tex = ref (None : Raylib.Texture.t option)
+
+let ensure_edge_capacity n =
+  if n > !clip_edges_cap then begin
+    (match !clip_edges_tex with
+    | Some t -> Raylib.Rlgl.unload_texture (Raylib.Texture.id t)
+    | None -> ());
+    let buf = Ctypes.CArray.make Ctypes.float (4 * n) in
+    let id =
+      Raylib.Rlgl.load_texture Ctypes.(CArray.start buf |> to_voidp) n 1 rgba32f 1
+    in
+    clip_edges_buf := buf;
+    clip_edges_tex :=
+      Some
+        (Raylib.Texture.create id n 1 1
+           Raylib.PixelFormat.Uncompressed_r32g32b32a32);
+    clip_edges_cap := n
+  end
 
 let set_float shader loc v =
   Ctypes.CArray.set clip_buf1 0 v;
@@ -186,28 +212,27 @@ let get_rt slot =
       slot := Some rt;
       rt
 
-(* Load the clip polygon's edges into the clip shader as its [n] closed edges
-   (vertex i -> vertex (i+1) mod n). Every vertex is used when the polygon fits
-   the cap [n = np]; otherwise the vertices are evenly subsampled. Closing over
-   [mod n] is what matters: truncating to an open edge list (as a naive [mod np]
-   over a shortened loop would) leaves the shader's even-odd fill without a
-   boundary on one side, so the clip leaks — the bug that broke oedipus's
-   many-vertex visibility polygons. *)
+(* Upload the clip polygon's [np] closed edges (vertex i -> vertex (i+1) mod np)
+   into the edge texture and point the shader at it. Every vertex is kept — no
+   cap, no subsampling — so the boundary matches the browser's exactly. Closing
+   over [mod np] keeps the edge loop closed, without which the winding fill would
+   have no boundary on one side and leak. *)
 let set_clip_edges s pts =
   let np = Array.length pts in
-  let n = min np max_clip_edges in
-  let vx k = if n = np then pts.(k) else pts.(k * np / n) in
-  for i = 0 to n - 1 do
-    let ax, ay = vx i and bx', by' = vx ((i + 1) mod n) in
-    Ctypes.CArray.set clip_buf_edges (4 * i) ax;
-    Ctypes.CArray.set clip_buf_edges ((4 * i) + 1) ay;
-    Ctypes.CArray.set clip_buf_edges ((4 * i) + 2) bx';
-    Ctypes.CArray.set clip_buf_edges ((4 * i) + 3) by'
+  ensure_edge_capacity np;
+  let buf = !clip_edges_buf in
+  for i = 0 to np - 1 do
+    let ax, ay = pts.(i) and bx', by' = pts.((i + 1) mod np) in
+    Ctypes.CArray.set buf (4 * i) ax;
+    Ctypes.CArray.set buf ((4 * i) + 1) ay;
+    Ctypes.CArray.set buf ((4 * i) + 2) bx';
+    Ctypes.CArray.set buf ((4 * i) + 3) by'
   done;
-  Raylib.set_shader_value_v s.shader s.loc_edges
-    Ctypes.(CArray.start clip_buf_edges |> to_voidp)
-    Raylib.ShaderUniformDataType.Vec4 n;
-  set_int s.shader s.loc_count n;
+  let tex = Option.get !clip_edges_tex in
+  Raylib.Rlgl.update_texture (Raylib.Texture.id tex) 0 0 np 1 rgba32f
+    Ctypes.(CArray.start buf |> to_voidp);
+  Raylib.set_shader_value_texture s.shader s.loc_edges_tex tex;
+  set_int s.shader s.loc_count np;
   set_float s.shader s.loc_screen_height (float (Raylib.get_render_height ()))
 
 (* The clip polygon whose coverage currently sits in [mask_rt], and the screen
@@ -233,7 +258,6 @@ let get_clip_mask poly pts bx by bw bh =
     Raylib.begin_texture_mode mask;
     Raylib.begin_scissor_mode bx by bw bh;
     Raylib.clear_background Raylib.Color.blank;
-    set_clip_edges s pts;
     (* Write the coverage straight into the mask (replace, not blend, so it is
        stored as-is): a white quad through the clip shader outputs (cov,cov,cov,
        cov) per fragment. *)
@@ -241,6 +265,10 @@ let get_clip_mask poly pts bx by bw bh =
       Raylib.Rlgl.BlendFactor.zero Raylib.Rlgl.BlendFunction.func_add;
     Raylib.begin_blend_mode Raylib.BlendMode.Custom;
     Raylib.begin_shader_mode s.shader;
+    (* Bind the edge texture and set the uniforms only after the shader is
+       active: entering shader mode flushes the batch and clears raylib's
+       registered texture units, so a sampler bound before it would be lost. *)
+    set_clip_edges s pts;
     Raylib.draw_rectangle bx by bw bh Raylib.Color.white;
     Raylib.end_shader_mode ();
     Raylib.end_blend_mode ();
