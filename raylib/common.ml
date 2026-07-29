@@ -156,9 +156,8 @@ let clip_buf_int = Ctypes.CArray.make Ctypes.int32_t 1
 
 (* The clip edges, uploaded to a 1-row RGBA32F texture ([clipEdgesTex] above):
    one edge per texel, [(ax, ay)] in RG and [(bx, by)] in BA. Grown on demand so
-   any vertex count fits. [PIXELFORMAT_UNCOMPRESSED_R32G32B32A32] is raylib's
-   pixel-format enum value 10. *)
-let rgba32f = 10
+   any vertex count fits. *)
+let clip_edges_format = Raylib.PixelFormat.Uncompressed_r32g32b32a32
 let clip_edges_cap = ref 0
 let clip_edges_buf = ref (Ctypes.CArray.make Ctypes.float 0)
 let clip_edges_tex = ref (None : Raylib.Texture.t option)
@@ -172,13 +171,10 @@ let ensure_edge_capacity n =
     let id =
       Raylib.Rlgl.load_texture
         Ctypes.(CArray.start buf |> to_voidp)
-        n 1 rgba32f 1
+        n 1 clip_edges_format 1
     in
     clip_edges_buf := buf;
-    clip_edges_tex :=
-      Some
-        (Raylib.Texture.create id n 1 1
-           Raylib.PixelFormat.Uncompressed_r32g32b32a32);
+    clip_edges_tex := Some (Raylib.Texture.create id n 1 1 clip_edges_format);
     clip_edges_cap := n
   end
 
@@ -231,7 +227,7 @@ let set_clip_edges s pts =
     Ctypes.CArray.set buf ((4 * i) + 3) by'
   done;
   let tex = Option.get !clip_edges_tex in
-  Raylib.Rlgl.update_texture (Raylib.Texture.id tex) 0 0 np 1 rgba32f
+  Raylib.Rlgl.update_texture (Raylib.Texture.id tex) 0 0 np 1 clip_edges_format
     Ctypes.(CArray.start buf |> to_voidp);
   Raylib.set_shader_value_texture s.shader s.loc_edges_tex tex;
   set_int s.shader s.loc_count np;

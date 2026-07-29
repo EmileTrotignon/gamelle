@@ -30,10 +30,7 @@ let load_font_with_codepoints data size codepoints =
   let n = Array.length codepoints in
   let arr = Ctypes.CArray.make Ctypes.int n in
   Array.iteri (fun i cp -> Ctypes.CArray.set arr i cp) codepoints;
-  let f =
-    Raylib.load_font_from_memory ".ttf" data (String.length data) size
-      (Ctypes.CArray.start arr) n
-  in
+  let f = Raylib.load_font_from_memory ".ttf" data size arr in
   assert (Raylib.is_font_valid f);
   Raylib.set_texture_filter (Raylib.Font.texture f) Raylib.TextureFilter.Point;
   f
