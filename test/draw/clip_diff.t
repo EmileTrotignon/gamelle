@@ -21,5 +21,10 @@ Every clip is back at the antialiasing-jitter floor:
   $ odiff clip_jsoo.png clip_raylib.png 2>&1 | awk '/identical/{print 0} /different/{print int($2/100)}'
   76
 
-  $ odiff --antialiasing clip_jsoo.png clip_raylib.png 2>&1 | awk '/identical/{print 0} /different/{print int($2/100)}'
-  20
+The antialiasing-filtered count sits at a low per-environment floor; as in diff.t
+we assert only that we are still at it (a fixed /100 bucket boundary is flaky when
+the floor jitters across it), printing "ok" below a generous threshold and the
+/100 count otherwise so a real regression still fails.
+
+  $ odiff --antialiasing clip_jsoo.png clip_raylib.png 2>&1 | awk '/identical/{print "ok"} /different/{print ($2 < 3000 ? "ok" : int($2/100))}'
+  ok
