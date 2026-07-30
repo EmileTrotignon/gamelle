@@ -40,7 +40,20 @@ OFFX=$(((SCREEN - W) / 2))
 OFFY=$(((SCREEN - H) / 2))
 
 FBDIR="$(mktemp -d)"
-trap 'rm -rf "$FBDIR"' EXIT
+# Xvfb's own output (xkbcomp keysym warnings, xauth errors, the -fbdir unlink
+# message on exit) is captured here rather than dumped on every run; it is only
+# echoed if the capture fails, so a genuine startup failure is diagnosable
+# without the noise polluting a normal run's log. See the xvfb-run -e flag below.
+XVFB_LOG="$(mktemp)"
+cleanup() {
+  rc=$?
+  if [ "$rc" -ne 0 ] && [ -s "$XVFB_LOG" ]; then
+    echo "raylib_screenshot.sh: capture failed (exit $rc); Xvfb output follows:" >&2
+    cat "$XVFB_LOG" >&2
+  fi
+  rm -rf "$FBDIR" "$XVFB_LOG"
+}
+trap cleanup EXIT
 
 # GAMELLE_NO_AUDIO: there is no audio device under Xvfb; skip audio init.
 # GALLIUM_DRIVER=softpipe: force Mesa's reference software rasteriser instead of
@@ -58,14 +71,14 @@ trap 'rm -rf "$FBDIR"' EXIT
 # old -w 1) made xvfb-run intermittently declare Xvfb "failed to start" in CI, so
 # we keep a wide margin — on a fast, unloaded start xvfb-run returns as soon as
 # the server is ready, so the ceiling costs nothing there.
-# -e /dev/stderr: route Xvfb's own output (and xauth errors) to stderr instead of
-# the default /dev/null, so a genuine startup failure shows *why* in the CI log
-# (e.g. a display-lock collision) rather than a bare "failed to start".
+# -e "$XVFB_LOG": capture Xvfb's own output (and xauth errors) to a log that the
+# EXIT trap echoes only if the capture fails, so a genuine startup failure shows
+# *why* (e.g. a display-lock collision) without the routine xkbcomp noise.
 GAMELLE_NO_AUDIO=1 \
   GAMELLE_WINDOW_SIZE="${W}x${H}" \
   LIBGL_ALWAYS_SOFTWARE=1 \
   GALLIUM_DRIVER=softpipe \
-  xvfb-run -w 10 -e /dev/stderr -n "$SERVERNUM" -s "-screen 0 ${SCREEN}x${SCREEN}x24 -fbdir $FBDIR" \
+  xvfb-run -w 10 -e "$XVFB_LOG" -n "$SERVERNUM" -s "-screen 0 ${SCREEN}x${SCREEN}x24 -fbdir $FBDIR" \
   bash -c '
     out="$1"; fbdir="$2"; w="$3"; h="$4"; offx="$5"; offy="$6"; shift 6
     "$@" &

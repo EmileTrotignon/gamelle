@@ -70,7 +70,12 @@
    %{project_root}/test/cram/screenshot/screenshot.exe
    %{project_root}/data/FreeMono.ttf
    %{project_root}/test/raylib_screenshot.sh
-   4445
+   ; Unique port per parallel screenshot rule: it is both the geckodriver port and
+   ; (minus 4344) the Xvfb display number. test/text uses 4445-4449 and basic above
+   ; uses 4444, so clip must sit outside that range — 4445 collided with test/text's
+   ; `lines` rule on both, giving "Session is already started" / "Xvfb failed to
+   ; start" when they ran in parallel.
+   4450
    clip_)))
 
 (cram
