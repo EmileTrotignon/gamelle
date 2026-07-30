@@ -47,7 +47,18 @@ let run state update =
     Raylib.begin_drawing ();
     let prev_event = !(io.event) in
     Gamelle_common.io_reset_mutable_fields io;
-    io.event := Events_raylib.update !clock_ref prev_event;
+    (* Real time spent on the previous frame; [get_frame_time] is 0 on the very
+       first frame, so fall back to the nominal frame duration then. *)
+    let frame_dt =
+      let t = Raylib.get_frame_time () in
+      if t > 0.0 then t else Gamelle_common.Events_backend.target_dt
+    in
+    io.event :=
+      {
+        (Events_raylib.update !clock_ref prev_event) with
+        dt = frame_dt;
+        time = prev_event.time +. frame_dt;
+      };
     incr clock_ref;
     if Gamelle_common.Events_backend.is_pressed !(io.event) `quit then
       running := false;

@@ -16,7 +16,9 @@ module Bitmap = Bitmap_
 include Draw_geometry
 
 let dt = Gamelle_backend.dt
+let target_dt = Gamelle_common.target_dt
 let clock = Gamelle_backend.clock
+let ticks = Gamelle_common.ticks
 
 module Sound = Gamelle_backend.Sound
 module Window = Window_

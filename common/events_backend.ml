@@ -99,7 +99,9 @@ type t = {
   pressed_chars : Strings.t;
   down_chars : Strings.t;
   up_chars : Strings.t;
-  clock : int;
+  clock : int;  (** frame counter, used to schedule sounds and replays *)
+  dt : float;  (** real time elapsed since the previous frame *)
+  time : float;  (** real time elapsed since the game started *)
 }
 [@@deriving yojson]
 
@@ -120,12 +122,19 @@ let default =
     down_chars = Strings.empty;
     up_chars = Strings.empty;
     clock = 0;
+    dt = 1. /. 60.0;
+    time = 0.0;
   }
 
 let desired_fps = 60.0
-let desired_dt = 1. /. desired_fps
-let dt (_ : t) = desired_dt
-let clock t = float t.clock /. desired_fps
+
+(* The nominal frame duration for a [desired_fps] framerate. Exposed as
+   [target_dt] so games can opt into a fixed timestep; the actual per-frame
+   [dt] below is measured from real elapsed time by each backend. *)
+let target_dt = 1. /. desired_fps
+let dt t = t.dt
+let clock t = t.time
+let ticks t = t.clock
 let insert = Keys.add
 let remove = Keys.remove
 let diff = Keys.diff

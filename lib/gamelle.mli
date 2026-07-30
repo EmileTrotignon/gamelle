@@ -1629,20 +1629,20 @@ val clock : io:io -> float
     last_click
     ]} *)
 
+val ticks : io:io -> int
+(** [ticks ~io] is the number of frames elapsed since the game started. *)
+
 val dt : io:io -> float
-(** [dt ~io] is the duration of a frame, which is fixed to a 60fps framerate.
+(** [dt ~io] is the real time, in seconds, elapsed since the previous frame.
 
-    Example:
+    On the web backend the timer is paused while the tab is hidden, so resuming
+    does not report the paused duration.
 
-    {[
-    Gamelle.run (Point.v 200. 200., Vec.zero) @@ fun ~io (position, velocity) ->
-    let acceleration = Vec.v 0. 9.81 in
-    (* gravity *)
-    let velocity = Vec.(velocity + (dt ~io * acceleration)) in
-    let position = Vec.(position + (dt ~io * velocity)) in
-    Circle.draw ~io (Circle.v position 20.0);
-    (position, velocity)
-    ]} *)
+    Use {!target_dt} instead if you need a fixed timestep. *)
+
+val target_dt : float
+(** [target_dt] is the nominal frame duration at the target framerate (60fps).
+    Unlike {!dt} it is a constant, independent of the real elapsed time. *)
 
 module Ease : sig
   (** Easing functions, to smooth changes over time.

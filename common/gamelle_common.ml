@@ -53,7 +53,9 @@ let io_reset_mutable_fields io =
 let clean_io ~io fn = io.clean := fn :: !(io.clean)
 let get_color ~io = function None -> io.color | Some c -> c
 let clock ~io = Events_backend.clock !(io.event)
+let ticks ~io = Events_backend.ticks !(io.event)
 let dt ~io = Events_backend.dt !(io.event)
+let target_dt = Events_backend.target_dt
 let z ~io f = io.draws := (io.z_index, fun () -> f ~io) :: !(io.draws)
 
 let finalize_frame ~io =

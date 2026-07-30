@@ -27,7 +27,9 @@ val make_io : ?previous:'a abstract_io -> 'a -> 'a abstract_io
 val io_reset_mutable_fields : 'a abstract_io -> unit
 val clean_io : io:'a abstract_io -> (unit -> unit) -> unit
 val clock : io:'a abstract_io -> float
+val ticks : io:'a abstract_io -> int
 val dt : io:'a abstract_io -> float
+val target_dt : float
 val z : io:'a abstract_io -> (io:'a abstract_io -> unit) -> unit
 val get_color : io:'a abstract_io -> Color.t option -> Color.t
 val finalize_frame : io:'a abstract_io -> unit

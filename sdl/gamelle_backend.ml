@@ -69,7 +69,19 @@ let run () =
     in
 
     Sdl.pump_events ();
-    let event = Events_sdl.update ~clock:!Replay.clock !(io.event) in
+    (* Real time since the previous frame; 0 on the first frame, where we fall
+       back to the nominal frame duration. *)
+    let frame_dt =
+      let d = !now -. !now_prev in
+      if d > 0.0 then d else Events_backend.target_dt
+    in
+    let event =
+      {
+        (Events_sdl.update ~clock:!Replay.clock !(io.event)) with
+        dt = frame_dt;
+        time = !(io.event).time +. frame_dt;
+      }
+    in
     if Events_backend.is_pressed event `quit then raise Exit;
 
     let has_focus = Window.has_focus window in

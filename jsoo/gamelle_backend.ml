@@ -12,8 +12,21 @@ include Draw
 include Jsoo
 module Net = Net
 
+(* Active (visible) time, in seconds, at which the previous frame ran. *)
 let prev_now = ref 0.0
-let now = ref 0.0
+
+(* The browser stops firing [request_animation_frame] while the tab is hidden,
+   so the [elapsed] timestamp jumps by the whole pause on the frame we resume.
+   To keep [dt] a real measure of the time the game was actually running, we
+   track how long the tab has been hidden and subtract it: [hidden_total] is the
+   accumulated hidden time and [hidden_at] the timestamp we became hidden (both
+   in seconds, on the same [performance.now] clock as [elapsed]). *)
+let hidden_total = ref 0.0
+let hidden_at = ref None
+
+(* [true] once the first frame has run; the first frame has no predecessor to
+   measure against, so it falls back to [target_dt]. *)
+let started = ref false
 let clock = Gamelle_common.clock
 let dt = Gamelle_common.dt
 
@@ -110,16 +123,48 @@ let run ~canvas state update =
   let io = make_io backend in
   let clock_ref = ref 0 in
 
+  (* Record when the tab hides and how long it stayed hidden, so the frame that
+     resumes measures only the time the game was actually visible. *)
+  ignore
+    (Ev.listen Ev.visibilitychange
+       (fun _ ->
+         let t = Performance.now_ms G.performance /. 1000.0 in
+         if
+           Jstr.equal
+             (Document.visibility_state G.document)
+             Document.Visibility_state.hidden
+         then hidden_at := Some t
+         else
+           match !hidden_at with
+           | Some t0 ->
+               hidden_total := !hidden_total +. (t -. t0);
+               hidden_at := None
+           | None -> ())
+       (Document.as_target G.document));
+
   let rec animate state =
     let _ = G.request_animation_frame (loop state) in
     ()
   and loop state elapsed =
     let open Events_backend in
-    prev_now := !now;
-    now := elapsed /. 1000.0;
+    let prev_time = !(io.event).time in
+    let now = (elapsed /. 1000.0) -. !hidden_total in
+    let frame_dt =
+      if !started then now -. !prev_now
+      else (
+        started := true;
+        Gamelle_common.target_dt)
+    in
+    prev_now := now;
     Events_js.new_frame ();
     io_reset_mutable_fields io;
-    io.event := { !Events_js.current with clock = !clock_ref };
+    io.event :=
+      {
+        !Events_js.current with
+        clock = !clock_ref;
+        dt = frame_dt;
+        time = prev_time +. frame_dt;
+      };
     incr clock_ref;
     let state = update ~io state in
     finalize_frame ~io;
