@@ -10,6 +10,7 @@ type t = Events_backend.t [@@deriving yojson]
 type key = Events_backend.key [@@deriving yojson]
 
 module Strings = Events_backend.Strings
+module Keys = Events_backend.Keys
 
 let mouse_pos (t : t) = Events_backend.mouse_pos t
 let mouse_delta (t : t) = Events_backend.mouse_delta t
@@ -20,3 +21,18 @@ let wheel_delta (t : t) = Events_backend.wheel_delta t
 let pressed_chars (t : t) = t.Events_backend.pressed_chars
 let down_chars (t : t) = t.Events_backend.down_chars
 let up_chars (t : t) = t.Events_backend.up_chars
+
+let assume_next t =
+  Events_backend.
+    {
+      t with
+      Events_backend.keyup = Keys.empty;
+      Events_backend.keydown = Keys.empty;
+      down_chars = Strings.empty;
+      up_chars = Strings.empty;
+      mouse_x = t.mouse_x +. t.mouse_dx;
+      mouse_y = t.mouse_y +. t.mouse_dy;
+      time = t.time +. target_dt;
+    }
+
+let empty = Events_backend.default

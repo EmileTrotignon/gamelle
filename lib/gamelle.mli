@@ -1086,6 +1086,15 @@ module Input_snapshot : sig
   val wheel_delta : t -> float
   (** [wheel_delta e] returns the mouse wheel change carried by the event [e].
   *)
+
+  val assume_next : t -> t
+  (** [assume_next e] is what would happen on the next frame if the user does
+      nothing different: the mouse keeps moving, pressed keys are still pressed.
+  *)
+
+  val empty: t
+  (** The null input : mouse is at `0, 0`, nothing is pressed *)
+
 end
 
 module Input : sig
