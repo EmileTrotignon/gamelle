@@ -1092,9 +1092,8 @@ module Input_snapshot : sig
       nothing different: the mouse keeps moving, pressed keys are still pressed.
   *)
 
-  val empty: t
+  val empty : t
   (** The null input : mouse is at `0, 0`, nothing is pressed *)
-
 end
 
 module Input : sig
