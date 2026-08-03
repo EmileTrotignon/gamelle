@@ -20,8 +20,8 @@ let project ~io p =
 let draw_clip ~io _renderer f =
   (* Polygon clipping is not implemented for the (deprecated) SDL backend. *)
   match io.clip with
-  | Some _ -> failwith "gamelle: clipping is not supported by the SDL backend"
-  | None -> f ()
+  | _ :: _ -> failwith "gamelle: clipping is not supported by the SDL backend"
+  | [] -> f ()
 
 let draw ~io bmp p =
   let bmp = Delayed.force ~io bmp in

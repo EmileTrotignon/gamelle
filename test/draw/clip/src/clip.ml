@@ -15,7 +15,7 @@ open Gamelle
    view) easily has more than a hundred vertices. *)
 
 let w = 1000.
-let h = 2100.
+let h = 2700.
 let band_h = 300.
 let band row = Box.v (Point.v 0. (float row *. band_h)) (Size.v w band_h)
 
@@ -206,5 +206,45 @@ let () =
   let cio = View.clip_polygon star io in
   Box.fill ~io:cio ~color:Color.magenta b;
   Polygon.draw ~io ~color:Color.white star;
+
+  (* Band 7: nested box clips. Two overlapping boxes; the io is clipped to the
+     first and then to the second. Since a clip can only shrink the visible
+     zone, the fill must appear exactly in the intersection of the two boxes —
+     not the second box (which would mean the inner clip replaced the outer) and
+     not their union. Both outlines are drawn unclipped so the intersection is
+     easy to read. *)
+  let b = band 7 in
+  label ~io b "Nested box clips (intersection)";
+  let box_a =
+    Box.v
+      (Point.v (Box.x_middle b -. 260.) (Box.y_top b +. 40.))
+      (Size.v 320. 210.)
+  in
+  let box_b =
+    Box.v
+      (Point.v (Box.x_middle b -. 60.) (Box.y_top b +. 90.))
+      (Size.v 320. 180.)
+  in
+  let cio = io |> View.clip box_a |> View.clip box_b in
+  Box.fill ~io:cio ~color:Color.turquoise b;
+  Box.draw ~io ~color:Color.white box_a;
+  Box.draw ~io ~color:Color.yellow box_b;
+
+  (* Band 8: a box clip further narrowed by a polygon clip that pokes outside
+     the box. Only the part of the polygon that also lies inside the box may be
+     filled — the polygon clip must intersect with, not override, the box clip,
+     so the fill is a disc with a straight edge bitten off along the box border. *)
+  let b = band 8 in
+  label ~io b "Box then polygon clip (shrink only)";
+  let box =
+    Box.v
+      (Point.v (Box.x_middle b -. 200.) (Box.y_middle b -. 90.))
+      (Size.v 340. 180.)
+  in
+  let poly = ngon ~center:(Box.center b) ~radius:130. ~n:48 in
+  let cio = io |> View.clip box |> View.clip_polygon poly in
+  Box.fill ~io:cio ~color:Color.orange b;
+  Box.draw ~io ~color:Color.white box;
+  Polygon.draw ~io ~color:Color.yellow poly;
 
   ()

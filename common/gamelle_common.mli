@@ -13,7 +13,7 @@ open Geometry
 type 'a abstract_io = 'a View.abstract_io = {
   view : Transform.t;
   event : Events_backend.t ref;
-  clip : Geometry.Polygon.t option;
+  clip : Geometry.Polygon.t list;
   clip_events : bool;
   z_index : int;
   color : Color.t;

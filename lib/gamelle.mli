@@ -1481,14 +1481,17 @@ module View : sig
       window. See {!Window.size}. *)
 
   val clip : Box.t -> io -> io
-  (** [clip b io] ensures no drawing can happen outside of the box [b]. *)
+  (** [clip b io] ensures no drawing can happen outside of the box [b].
+
+      Clipping accumulates: if [io] is already clipped, the result is clipped to
+      the intersection of [b] and the existing region, so a clip can only shrink
+      the visible zone, never enlarge it. To widen the region again, keep and
+      reuse the [io] from before the clip. *)
 
   val clip_polygon : Polygon.t -> io -> io
   (** [clip_polygon p io] ensures no drawing can happen outside of the polygon
-      [p]. *)
-
-  val unclip : io -> io
-  (** [unclip io] removes any active clip region. *)
+      [p]. Like {!clip}, this intersects with any clip already active on [io].
+  *)
 
   val z_index : int -> io -> io
   (** [z_index z io] controls the depth [z] of the following draws. *)

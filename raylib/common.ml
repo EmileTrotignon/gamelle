@@ -41,12 +41,14 @@ let project ~io p =
 
 (* --- Polygon clipping ---
 
-   The clip region ([io.clip]) is a screen-space polygon, frozen when
-   [View.clip] / [View.clip_polygon] was applied. raylib only offers an
-   axis-aligned scissor, so to clip against the (possibly rotated, possibly
-   concave) polygon we render the draw into an offscreen texture, then composite
-   it back through a shader that keeps each fragment by its signed distance to
-   the polygon — antialiasing the boundary for convex and concave shapes alike.
+   The clip region ([io.clip]) is a list of screen-space polygons, each frozen
+   when its [View.clip] / [View.clip_polygon] was applied. Successive clips only
+   shrink the visible zone, so a pixel survives only where it lies inside every
+   polygon. raylib only offers an axis-aligned scissor, so to clip against the
+   (possibly rotated, possibly concave) polygons we render the draw into an
+   offscreen texture, then composite it back through a coverage mask that is the
+   product of each polygon's coverage — antialiasing the boundary for convex and
+   concave shapes alike.
    A screen-sized texture is reused for every clipped draw, and everything
    already funnels through [with_scissor], so this covers all primitives
    (shapes, textures, text) uniformly, per draw call — which keeps each draw's
@@ -233,46 +235,51 @@ let set_clip_edges s pts =
   set_int s.shader s.loc_count np;
   set_float s.shader s.loc_screen_height (float (Raylib.get_render_height ()))
 
-(* The clip polygon whose coverage currently sits in [mask_rt], and the screen
-   size it was built for. A whole clip region reuses one [io.clip] polygon for
-   all its draws, so keying the cached mask on that polygon's identity runs the
-   (per-pixel, per-edge) coverage pass once per region rather than once per draw
-   — which is what made oedipus's many-vertex visibility clip slow. *)
-let mask_poly : Geometry.Polygon.t option ref = ref None
+(* The clip polygons whose combined coverage currently sits in [mask_rt], and
+   the screen size it was built for. A whole clip region reuses one [io.clip]
+   list for all its draws, so keying the cached mask on that list's identity
+   runs the (per-pixel, per-edge) coverage pass once per region rather than once
+   per draw — which is what made oedipus's many-vertex visibility clip slow. *)
+let mask_polys : Geometry.Polygon.t list ref = ref []
 let mask_size : (int * int) ref = ref (0, 0)
 
-(* Render [poly]'s antialiased coverage into [mask_rt] over its bounding box,
-   memoised on the polygon's identity and the screen size. The signed-distance
-   shader (its per-fragment loop over all the polygon edges) runs only here. *)
-let get_clip_mask poly pts bx by bw bh =
+(* Render the intersection of [polys]'s antialiased coverage into [mask_rt] over
+   the (already intersected) bounding box [bx,by,bw,bh], memoised on the list's
+   identity and the screen size. The signed-distance shader (its per-fragment
+   loop over one polygon's edges) runs once per polygon here. Each [pts] is that
+   polygon's vertices as a float tuple array. *)
+let get_clip_mask polys pts_list bx by bw bh =
   let sw = Raylib.get_screen_width () and sh = Raylib.get_screen_height () in
-  let cached =
-    (match !mask_poly with Some p -> p == poly | None -> false)
-    && !mask_size = (sw, sh)
-  in
+  let cached = !mask_polys == polys && !mask_size = (sw, sh) in
   let mask = get_rt mask_rt in
   if not cached then begin
     let s = get_clip_shader () in
     Raylib.begin_texture_mode mask;
     Raylib.begin_scissor_mode bx by bw bh;
-    Raylib.clear_background Raylib.Color.blank;
-    (* Write the coverage straight into the mask (replace, not blend, so it is
-       stored as-is): a white quad through the clip shader outputs (cov,cov,cov,
-       cov) per fragment. *)
-    Raylib.Rlgl.set_blend_factors Raylib.Rlgl.BlendFactor.one
-      Raylib.Rlgl.BlendFactor.zero Raylib.Rlgl.BlendFunction.func_add;
-    Raylib.begin_blend_mode Raylib.BlendMode.Custom;
-    Raylib.begin_shader_mode s.shader;
-    (* Bind the edge texture and set the uniforms only after the shader is
-       active: entering shader mode flushes the batch and clears raylib's
-       registered texture units, so a sampler bound before it would be lost. *)
-    set_clip_edges s pts;
-    Raylib.draw_rectangle bx by bw bh Raylib.Color.white;
-    Raylib.end_shader_mode ();
-    Raylib.end_blend_mode ();
+    (* Start from full coverage, then multiply each polygon's coverage in, so
+       the mask ends up as the product — a pixel kept only where every polygon
+       keeps it. *)
+    Raylib.clear_background Raylib.Color.white;
+    List.iter
+      (fun pts ->
+        (* Multiply the shader's (cov,cov,cov,cov) output into the mask: source
+           factor [dst_color] and destination factor [zero] give
+           [coverage * mask] per channel. *)
+        Raylib.Rlgl.set_blend_factors Raylib.Rlgl.BlendFactor.dst_color
+          Raylib.Rlgl.BlendFactor.zero Raylib.Rlgl.BlendFunction.func_add;
+        Raylib.begin_blend_mode Raylib.BlendMode.Custom;
+        Raylib.begin_shader_mode s.shader;
+        (* Bind the edge texture and set the uniforms only after the shader is
+           active: entering shader mode flushes the batch and clears raylib's
+           registered texture units, so a sampler bound before it would be lost. *)
+        set_clip_edges s pts;
+        Raylib.draw_rectangle bx by bw bh Raylib.Color.white;
+        Raylib.end_shader_mode ();
+        Raylib.end_blend_mode ())
+      pts_list;
     Raylib.end_scissor_mode ();
     Raylib.end_texture_mode ();
-    mask_poly := Some poly;
+    mask_polys := polys;
     mask_size := (sw, sh)
   end;
   mask
@@ -292,23 +299,41 @@ let draw_rt_bbox t bx by bw bh sh =
 
 let with_scissor ~io f =
   match io.clip with
-  | None -> f ()
-  | Some poly ->
-      let pts = Array.of_list (List.map Vec.to_tuple (Polygon.points poly)) in
-      if Array.length pts < 3 then ()
+  | [] -> f ()
+  | polys ->
+      let pts_list =
+        List.map
+          (fun poly ->
+            Array.of_list (List.map Vec.to_tuple (Polygon.points poly)))
+          polys
+      in
+      (* A region with fewer than 3 vertices is degenerate and clips everything
+         away, so the intersection is empty and nothing is drawn. *)
+      if List.exists (fun pts -> Array.length pts < 3) pts_list then ()
       else begin
         let sw = Raylib.get_screen_width ()
         and sh = Raylib.get_screen_height () in
-        (* Bound the offscreen work to the clip's (clamped) bounding box. *)
-        let minx = ref infinity and miny = ref infinity in
-        let maxx = ref neg_infinity and maxy = ref neg_infinity in
-        Array.iter
-          (fun (x, y) ->
-            minx := Float.min !minx x;
-            miny := Float.min !miny y;
-            maxx := Float.max !maxx x;
-            maxy := Float.max !maxy y)
-          pts;
+        (* Bound the offscreen work to the intersection of the clips' (clamped)
+           bounding boxes: a pixel outside any one polygon's box is clipped
+           away, so only their common box can contain visible pixels. *)
+        let minx = ref 0. and miny = ref 0. in
+        let maxx = ref (float sw) and maxy = ref (float sh) in
+        List.iter
+          (fun pts ->
+            let pminx = ref infinity and pminy = ref infinity in
+            let pmaxx = ref neg_infinity and pmaxy = ref neg_infinity in
+            Array.iter
+              (fun (x, y) ->
+                pminx := Float.min !pminx x;
+                pminy := Float.min !pminy y;
+                pmaxx := Float.max !pmaxx x;
+                pmaxy := Float.max !pmaxy y)
+              pts;
+            minx := Float.max !minx !pminx;
+            miny := Float.max !miny !pminy;
+            maxx := Float.min !maxx !pmaxx;
+            maxy := Float.min !maxy !pmaxy)
+          pts_list;
         let bx = int_of_float (Float.max 0. !minx) in
         let by = int_of_float (Float.max 0. !miny) in
         let bw =
@@ -318,7 +343,7 @@ let with_scissor ~io f =
           min (int_of_float (Float.min !maxy (float sh)) + 2 - by) (sh - by)
         in
         if bw > 0 && bh > 0 then begin
-          let mask = get_clip_mask poly pts bx by bw bh in
+          let mask = get_clip_mask polys pts_list bx by bw bh in
           let rt = get_rt scratch_rt in
           (* Render the draw into the (bbox-cleared) offscreen layer. Colour is
              composited normally, but the alpha channel accumulates as coverage

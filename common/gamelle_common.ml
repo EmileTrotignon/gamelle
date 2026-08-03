@@ -14,7 +14,7 @@ open Geometry
 type 'a abstract_io = 'a View.abstract_io = {
   view : Transform.t;
   event : Events_backend.t ref;
-  clip : Polygon.t option;
+  clip : Polygon.t list;
   clip_events : bool;
   z_index : int;
   color : Color.t;
@@ -28,7 +28,7 @@ let make_io backend =
   {
     view = Transform.default;
     event = ref Events_backend.default;
-    clip = None;
+    clip = [];
     clip_events = false;
     z_index = 0;
     color = Color.white;
