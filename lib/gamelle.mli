@@ -1450,6 +1450,29 @@ module Ui : sig
           in
           text
         ]} *)
+
+    val with_internal_state :
+      (module Store with type value = 'i) -> ui -> 'i -> ('i -> 'i * 'e) -> 'e
+    (** [with_internal_state (module Store) [%ui] default (fun i -> ...)] is
+        like {!with_state} but keeps the widget's own internal state [i]
+        (managed by the UI, e.g. a cursor position) separate from the external
+        value [e] managed by the programmer (e.g. the text of an input). Only
+        [i] is persisted; [e] is passed in and returned every frame, so it stays
+        authoritative and reflects out-of-band changes made by the caller.
+
+        {[
+        open Ui.Custom
+
+        module Store = State (struct
+          type t = int (* cursor *)
+        end)
+
+        let my_input ui text =
+          with_internal_state (module Store) [%ui] 0 @@ fun cursor ->
+          draw ui ~min_width:30. ~min_height:30. (fun ~io box ->
+              (* render [text] with [cursor] *) ());
+          (cursor', text')
+        ]} *)
   end
 
   (**/**)

@@ -148,22 +148,21 @@ let update ~io { offset; cursor; focused; pressed_key } text box =
     let offset = max 0.0 (min (max_width -. width) offset) in
     ({ offset; cursor; focused; pressed_key }, text)
 
+(* Only the cursor/offset/focus is internal UI state; the text itself is owned
+   by the caller (passed in and returned each frame), so it stays authoritative
+   and out-of-band changes to it are honoured. *)
 module State = Ui_backend.State (struct
-  type t = state * Text.t
+  type t = state
 end)
 
 let v ui text =
   boxed ui @@ fun () ->
   with_box ui @@ fun box ->
   let io = get_io ui in
-  let default = (default_state, Text.of_string text) in
-  let _internal, text =
-    Ui_backend.with_state (module State) ui default begin fun (st, text) ->
-      let st, text = update ~io st text box in
-      let text_size = Text.size_t ~io text in
-      Ui_backend.draw ui ~min_width:30.0 ~flex_width:1.0
-        ~min_height:(Size.height text_size) (render st text);
-      (st, text)
-      end
-  in
-  Text.to_string text
+  Ui_backend.with_internal_state (module State) ui default_state begin fun st ->
+    let st, text = update ~io st (Text.of_string text) box in
+    let text_size = Text.size_t ~io text in
+    Ui_backend.draw ui ~min_width:30.0 ~flex_width:1.0
+      ~min_height:(Size.height text_size) (render st text);
+    (st, Text.to_string text)
+    end

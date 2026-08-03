@@ -55,4 +55,5 @@ module Custom = struct
   module State = Ui_backend.State
 
   let with_state = Ui_backend.with_state
+  let with_internal_state = Ui_backend.with_internal_state
 end

@@ -81,6 +81,18 @@ let with_state (type a) (module S : Store with type value = a) ui default fn =
   state_update s result;
   result
 
+(* Like {!with_state} but keeps the widget's own internal state (of type ['i],
+   e.g. a cursor position) separate from the external value the programmer owns
+   (of type ['e], e.g. the text of an input). Only the internal part is
+   persisted here; the external value is passed in and returned every frame, so
+   it stays authoritative and reflects out-of-band changes by the caller. *)
+let with_internal_state (type i e) (module S : Store with type value = i) ui
+    default (fn : i -> i * e) : e =
+  let s = S.find ui default in
+  let internal, ext = fn (state_value s) in
+  state_update s internal;
+  ext
+
 let get_io (ui, _loc) = !(ui.io)
 let push_renderer ~ui renderer = ui.renderers <- renderer :: ui.renderers
 let draw_layout (ui, _loc) layout = push_renderer ~ui layout
