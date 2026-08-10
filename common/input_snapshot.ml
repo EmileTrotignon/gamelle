@@ -35,4 +35,4 @@ let assume_next t =
       time = t.time +. target_dt;
     }
 
-let empty = Events_backend.default
+let null = Events_backend.default

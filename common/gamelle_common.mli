@@ -8,6 +8,7 @@ module Font_metrics : module type of Font_metrics
 module Delayed : module type of Delayed
 module Geometry : module type of Geometry
 module View : module type of View
+module Netcode : module type of Netcode
 open Geometry
 
 type 'a abstract_io = 'a View.abstract_io = {

@@ -7,6 +7,7 @@ module Physics = Physics
 module Routine = Routine
 module View = View
 module Transform = Gamelle_common.Transform
+module Netcode = Gamelle_common.Netcode
 
 type key = Event.key
 

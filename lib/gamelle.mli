@@ -1092,7 +1092,7 @@ module Input_snapshot : sig
       nothing different: the mouse keeps moving, pressed keys are still pressed.
   *)
 
-  val empty : t
+  val null : t
   (** The null input : mouse is at `0, 0`, nothing is pressed *)
 end
 
@@ -1633,6 +1633,8 @@ module Net : sig
   val close : t -> unit
   (** [close t] closes the connection. *)
 end
+
+module Netcode : module type of Gamelle_common.Netcode
 
 (** {1 Animations} *)
 

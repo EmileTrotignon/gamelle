@@ -6,6 +6,7 @@ module Font = Font
 module Font_metrics = Font_metrics
 module Delayed = Delayed
 module Geometry = Geometry
+module Netcode = Netcode
 
 let max_sounds = 256
 
