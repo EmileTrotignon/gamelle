@@ -5,10 +5,7 @@
   <polygon points="80,20 138,132 22,132" fill="#c83232"/>
   <rect x="60" y="60" width="40" height="40" fill="#28a05a"/>
   <circle cx="80" cy="80" r="14" fill="#f2f2f2"/>
-  <!-- A cubic Bézier "S" curve: a genuine smooth path, not expressible with
-       rectangles, circles or polygons. -->
   <path d="M16,116 C56,36 104,196 144,116" fill="none" stroke="#101018"
         stroke-width="7" stroke-linecap="round"/>
-  <!-- A filled teardrop built from two quadratic Béziers. -->
   <path d="M80,6 Q108,44 80,58 Q52,44 80,6 Z" fill="#f2f2f2"/>
 </svg>
