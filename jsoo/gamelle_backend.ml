@@ -5,6 +5,7 @@ open Geometry
 module Text = Text
 module Color = Color
 module Bitmap = Bitmap
+module Svg = Svg
 module Font = Font_
 module Sound = Sound
 module Transform = Gamelle_common.Transform

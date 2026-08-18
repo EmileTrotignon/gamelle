@@ -1,0 +1,9 @@
+(lang dune 3.7)
+
+(name defs_use)
+
+(package
+  (name defs_use)
+  (synopsis "defs_use")
+  (depends
+    gamelle))

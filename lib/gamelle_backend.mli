@@ -13,6 +13,14 @@ module Bitmap : sig
   val sub : t -> int -> int -> int -> int -> t
 end
 
+module Svg : sig
+  type t
+
+  (* [load ~w ~h data] loads the SVG source [data]; [w] and [h] are its
+     intrinsic dimensions, computed by the asset packer. *)
+  val load : w:int -> h:int -> string -> t
+end
+
 module Font : sig
   type t
 
@@ -45,6 +53,10 @@ end
 val clock : io:io -> float
 val dt : io:io -> float
 val draw : io:io -> Bitmap.t -> point -> unit
+
+(* Draw the SVG at [point], at its intrinsic size, honouring the current view
+   transform (translation, rotation, scale) and clip region — like [draw]. *)
+val draw_svg : io:io -> Svg.t -> point -> unit
 val draw_line : io:io -> ?color:Color.t -> Segment.t -> unit
 val draw_rect : io:io -> ?color:Color.t -> box -> unit
 val fill_rect : io:io -> ?color:Color.t -> box -> unit

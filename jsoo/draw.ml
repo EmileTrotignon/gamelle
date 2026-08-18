@@ -35,6 +35,12 @@ let draw ~io bmp p =
   let ctx = io.backend.ctx in
   Clip.draw_clip ~io ctx (fun () -> Bitmap.draw ~io ~ctx bmp ~x ~y)
 
+let draw_svg ~io svg p =
+  transform ~io;
+  let x, y = Vec.to_tuple p in
+  let ctx = io.backend.ctx in
+  Clip.draw_clip ~io ctx (fun () -> Svg.draw ~io ~ctx svg ~x ~y)
+
 let fill_rect ~io ?color rect =
   transform ~io;
   let x, y = Vec.to_tuple (Box.top_left rect) in

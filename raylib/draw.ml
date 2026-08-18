@@ -28,6 +28,28 @@ let draw ~io bmp p =
   Raylib.draw_texture_pro bmp.Bitmap.texture src dst (v2 0. 0.) angle
     Raylib.Color.white
 
+(* An SVG is drawn as the same textured quad as a bitmap, except its texture is
+   (re-)rasterised by nanosvg at the on-screen resolution first (see [Svg]) so it
+   stays crisp under zoom, and the source rectangle is the whole texture while the
+   destination is the intrinsic logical size, so that raster is sampled to size. *)
+let draw_svg ~io svg p =
+  let svg = Delayed.force ~io svg in
+  let scale = io.view.Transform.scale in
+  Svg.ensure_scale svg scale;
+  let x, y = project ~io p in
+  let src =
+    Raylib.Rectangle.create 0. 0. (float svg.Svg.tex_w) (float svg.Svg.tex_h)
+  in
+  let dst =
+    Raylib.Rectangle.create x y
+      (float svg.Svg.w *. scale)
+      (float svg.Svg.h *. scale)
+  in
+  let angle = io.view.Transform.rotate *. 360.0 /. tau in
+  with_scissor ~io @@ fun () ->
+  Raylib.draw_texture_pro svg.Svg.texture src dst (v2 0. 0.) angle
+    Raylib.Color.white
+
 (* [draw_line], [draw_poly] and [draw_rect] are defined after the shader helpers
    below: their straight edges are antialiased with an SDF segment shader so they
    match the browser backend (which strokes with antialiasing). *)

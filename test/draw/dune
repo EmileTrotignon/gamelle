@@ -78,6 +78,82 @@
    4450
    clip_)))
 
+; The SVG scene: draw the same vector logo plain, under a rotated view, and
+; under a clip, so the raylib (nanosvg-rasterised) and browser (native SVG)
+; renderings can be compared. Same pipeline, its own output prefix and port.
+;
+;   dune build @draw_screenshot_svg --auto-promote
+
+(rule
+ (alias draw_screenshot_svg)
+ (targets svg_compare.png svg_diff.png svg_raylib.png svg_jsoo.png)
+ (mode promote)
+ (deps
+  screenshot.sh
+  svg/svg_scene_bin.exe
+  svg/svg_scene.html
+  (file %{project_root}/test/cram/screenshot/screenshot.exe)
+  (file %{project_root}/data/FreeMono.ttf)
+  (file %{project_root}/test/raylib_screenshot.sh))
+ (action
+  (run
+   bash
+   screenshot.sh
+   svg/svg_scene_bin.exe
+   svg/svg_scene.html
+   %{project_root}/test/cram/screenshot/screenshot.exe
+   %{project_root}/data/FreeMono.ttf
+   %{project_root}/test/raylib_screenshot.sh
+   ; Unique port (see the clip rule above): outside test/text's 4445-4449, basic's
+   ; 4444 and clip's 4450.
+   4451
+   svg_)))
+
+; The defs/use SVG scene: draw an SVG whose foreground art lives in <defs> and is
+; instantiated with <use> (exactly how the SWF->SVG exporter emits it). The
+; browser resolves <use> and draws the art; raylib's nanosvg does not, so only
+; the background rect survives. This scene exists to reproduce that bug: the two
+; renderings differ by the whole foreground. Same pipeline, its own port/prefix.
+;
+;   dune build @draw_screenshot_defs_use --auto-promote
+
+(rule
+ (alias draw_screenshot_defs_use)
+ (targets
+  defs_use_compare.png
+  defs_use_diff.png
+  defs_use_raylib.png
+  defs_use_jsoo.png)
+ (mode promote)
+ (deps
+  screenshot.sh
+  defs_use/defs_use_bin.exe
+  defs_use/defs_use.html
+  (file %{project_root}/test/cram/screenshot/screenshot.exe)
+  (file %{project_root}/data/FreeMono.ttf)
+  (file %{project_root}/test/raylib_screenshot.sh))
+ (action
+  (run
+   bash
+   screenshot.sh
+   defs_use/defs_use_bin.exe
+   defs_use/defs_use.html
+   %{project_root}/test/cram/screenshot/screenshot.exe
+   %{project_root}/data/FreeMono.ttf
+   %{project_root}/test/raylib_screenshot.sh
+   ; Unique port (see the clip rule above): outside test/text's 4445-4449, basic's
+   ; 4444, clip's 4450 and svg's 4451.
+   4452
+   defs_use_)))
+
 (cram
  (package gamelle)
- (deps raylib.png jsoo.png clip_raylib.png clip_jsoo.png))
+ (deps
+  raylib.png
+  jsoo.png
+  clip_raylib.png
+  clip_jsoo.png
+  svg_raylib.png
+  svg_jsoo.png
+  defs_use_raylib.png
+  defs_use_jsoo.png))

@@ -25,6 +25,22 @@ jobs:
       - name: Install dependencies
         run: opam install ./gamelle.opam ./gamelle-all.opam --deps-only --with-test
 
+      # usvg must be installed BEFORE the build: the asset packer inlines
+      # <use>/<defs> in SVG assets via `usvg` (from the resvg project) at pack
+      # time, and packing happens during `dune build @install` (the defs_use
+      # scene is a public executable). usvg is not a declared dependency of the
+      # asset-packing rule, so if it is missing at build time the SVG is embedded
+      # un-inlined and that result is cached — `dune runtest` then renders only
+      # the background in the raylib (nanosvg) backend and the screenshot diff
+      # tests diverge by the whole foreground. Ubuntu has no resvg apt package,
+      # so fetch the prebuilt static binary from the resvg release. Pinned to the
+      # version the committed baseline SVG renders were generated with.
+      - name: Install usvg (resvg)
+        run: |
+          curl -fsSL https://github.com/linebender/resvg/releases/download/v0.48.1/usvg-linux-x86_64.tar.gz \
+            | sudo tar xz -C /usr/local/bin usvg
+          usvg --version
+
       - name: Build
         run: opam exec -- dune build @install
 

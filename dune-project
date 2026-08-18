@@ -49,6 +49,8 @@
    (>= 0.4.0))
   (imagelib
    (>= 20221222))
+  (nanosvg
+   (>= 0.2))
   (webdriver_cohttp-lwt-unix :with-test))
  (depopts
   (inotify
@@ -86,5 +88,5 @@
 (package
  (name gamelle-all)
  (synopsis "Gamelle with all optional deps")
- (depends gamelle raylib ctypes ctypes-foreign inotify tsdl tsdl-image tsdl-mixer tsdl-ttf conf-sdl2-gfx lwt uri conduit-lwt-unix tls-lwt websocket-lwt-unix)
+ (depends gamelle raylib nanosvg ctypes ctypes-foreign inotify tsdl tsdl-image tsdl-mixer tsdl-ttf conf-sdl2-gfx lwt uri conduit-lwt-unix tls-lwt websocket-lwt-unix)
  (allow_empty))

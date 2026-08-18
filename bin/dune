@@ -11,6 +11,7 @@
   dynlink
   imagelib
   imagelib.unix
+  nanosvg
   (select
    asset_editor.ml
    from

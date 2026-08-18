@@ -6,6 +6,7 @@
  (optional)
  (private_modules
   bitmap
+  svg
   common
   draw
   events_raylib
@@ -18,6 +19,7 @@
   gamelle_common
   uuseg
   raylib
+  nanosvg
   ctypes
   ctypes-foreign
   lwt

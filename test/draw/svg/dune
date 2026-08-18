@@ -1,0 +1,43 @@
+(env
+ (dev
+  (flags
+   (:standard -warn-error -A))))
+
+(executable
+ (public_name svg_scene)
+ (name svg_scene_bin)
+ (modules svg_scene_bin)
+ (libraries svg_scene gamelle.raylib))
+
+(rule
+ (target svg_scene_bin.ml)
+ (action
+  (with-stdout-to
+   svg_scene_bin.ml
+   (run echo "include Svg_scene"))))
+
+(executable
+ (name svg_scene_js)
+ (modules svg_scene_js)
+ (modes js)
+ (js_of_ocaml)
+ (libraries svg_scene gamelle.jsoo))
+
+(rule
+ (target svg_scene_js.ml)
+ (action
+  (with-stdout-to
+   svg_scene_js.ml
+   (run echo "include Svg_scene"))))
+
+(rule
+ (target svg_scene.html)
+ (deps svg_scene.template.html svg_scene_js.bc.js)
+ (action
+  (with-stdout-to
+   svg_scene.html
+   (run
+    %{bin:gamelle}
+    html
+    --template=svg_scene.template.html
+    --script=svg_scene_js.bc.js))))
