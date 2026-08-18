@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink"
+     width="160" height="160" viewBox="0 0 160 160">
+  <rect x="0" y="0" width="160" height="160" fill="#3a4aa0"/>
+  <defs>
+    <g id="art">
+      <circle cx="80" cy="80" r="50" fill="#e6b422"/>
+      <polygon points="80,36 120,116 40,116" fill="#c83232"/>
+      <circle cx="80" cy="80" r="12" fill="#f2f2f2"/>
+    </g>
+  </defs>
+  <use xlink:href="#art"/>
+</svg>

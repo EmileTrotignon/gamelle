@@ -1,0 +1,43 @@
+(env
+ (dev
+  (flags
+   (:standard -warn-error -A))))
+
+(executable
+ (public_name defs_use_scene)
+ (name defs_use_bin)
+ (modules defs_use_bin)
+ (libraries defs_use gamelle.raylib))
+
+(rule
+ (target defs_use_bin.ml)
+ (action
+  (with-stdout-to
+   defs_use_bin.ml
+   (run echo "include Defs_use"))))
+
+(executable
+ (name defs_use_js)
+ (modules defs_use_js)
+ (modes js)
+ (js_of_ocaml)
+ (libraries defs_use gamelle.jsoo))
+
+(rule
+ (target defs_use_js.ml)
+ (action
+  (with-stdout-to
+   defs_use_js.ml
+   (run echo "include Defs_use"))))
+
+(rule
+ (target defs_use.html)
+ (deps defs_use.template.html defs_use_js.bc.js)
+ (action
+  (with-stdout-to
+   defs_use.html
+   (run
+    %{bin:gamelle}
+    html
+    --template=defs_use.template.html
+    --script=defs_use_js.bc.js))))
