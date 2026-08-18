@@ -38,8 +38,8 @@ let svg_payload sysname =
       Format.eprintf
         "gamelle: warning: command 'usvg' was not found, so SVG assets are \
          embedded as-is. <use>/<defs> or text node will not be shown in the \
-         raylib backend: the nanosvg rasteriser does not support these \
-         SVG features. "
+         raylib backend: the nanosvg rasteriser does not support these SVG \
+         features. "
     end;
     file_contents sysname
   end
