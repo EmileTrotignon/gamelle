@@ -31,6 +31,16 @@ let extension_loader ~sysname ~ext =
         in
         Some (Parts (raw, "Gamelle.Bitmap.sub", parts))
       else Some (Raw raw)
+  | ".svg" ->
+      let w, h =
+        match Nanosvg.parse (file_contents sysname) with
+        | Some img ->
+            ( max 1 (int_of_float (Float.round (Nanosvg.Image_data.width img))),
+              max 1 (int_of_float (Float.round (Nanosvg.Image_data.height img)))
+            )
+        | None -> (1, 1)
+      in
+      Some (Raw (Printf.sprintf "Gamelle.Svg.load ~w:%i ~h:%i" w h))
   | ".mp3" | ".wav" | ".ogg" | ".flac" -> Some (Raw "Gamelle.Sound.load")
   | _ -> Some (Raw "Fun.id")
 

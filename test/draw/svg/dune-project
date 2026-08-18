@@ -1,0 +1,9 @@
+(lang dune 3.7)
+
+(name svg_scene)
+
+(package
+  (name svg_scene)
+  (synopsis "svg_scene")
+  (depends
+    gamelle))

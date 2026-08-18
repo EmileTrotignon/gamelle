@@ -11,6 +11,7 @@ depends: [
   "dune" {>= "3.15"}
   "gamelle"
   "raylib"
+  "nanosvg"
   "ctypes"
   "ctypes-foreign"
   "inotify"

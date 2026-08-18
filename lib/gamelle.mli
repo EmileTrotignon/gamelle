@@ -801,6 +801,38 @@ module Bitmap : sig
   val load : w:int -> h:int -> string -> t
 end
 
+module Svg : sig
+  (** Scalable vector images: SVG.
+
+      An SVG file [assets/foo.svg] is automatically loaded and available as
+      [Assets.foo : Svg.t]. It is drawn at its intrinsic size and honours the
+      current {!View} transform (translation, rotation, scale) and clipping,
+      just like a {!Bitmap}. On the browser backend the vector art is rasterised
+      by the browser at display resolution; on the native (raylib) backend it is
+      rasterised once at load time into a high-resolution texture. *)
+
+  type t
+  (** The type of SVG images. *)
+
+  val draw : io:io -> at:Point.t -> t -> unit
+  (** [draw ~io ~at img] draws the SVG [img] at position [at] on the screen. *)
+
+  (** {2 Accessors} *)
+
+  val width : t -> int
+  (** [width img] is the intrinsic width in pixels of the SVG [img]. *)
+
+  val height : t -> int
+  (** [height img] is the intrinsic height in pixels of the SVG [img]. *)
+
+  val size : t -> Size.t
+  (** [size img] is the intrinsic width and height of the SVG [img]. *)
+
+  (**/**)
+
+  val load : w:int -> h:int -> string -> t
+end
+
 val draw : io:io -> at:Point.t -> Bitmap.t -> unit
 (** [draw ~io ~at bitmap] draws the image [bitmap] at position [at] on the
     screen. Same as {!Bitmap.draw}.

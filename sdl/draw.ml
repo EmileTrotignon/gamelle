@@ -46,6 +46,10 @@ let draw ~io bmp p =
   in
   ()
 
+(* SVG is unsupported on the deprecated SDL backend. *)
+let draw_svg ~io:_ (_ : Svg.t) _ =
+  failwith "gamelle: SVG is not supported by the SDL backend"
+
 let draw_line ~io ?color segment =
   let p, p' = Segment.to_tuple segment in
   let x1, y1 = project ~io p in

@@ -4,6 +4,7 @@
  (optional)
  (private_modules
   bitmap
+  svg
   common
   draw
   events_sdl
