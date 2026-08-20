@@ -34,6 +34,11 @@ let dt = Gamelle_common.dt
 module Window = struct
   let px v = Jstr.of_string (string_of_int v ^ "px")
 
+  (* The logical size to use in windowed mode. Fullscreen temporarily adopts the
+     screen size as the logical size (see [set_size]); this remembers the size
+     to restore on the way back out, and tracks the game's requested size. *)
+  let windowed_size = ref !Jsoo.logical_size
+
   (* Synchronize the canvas with the game's logical size: the element is
      displayed at the logical size (in fullscreen the UA stylesheet overrides
      this and stretches it to the screen), while the backing store follows the
@@ -42,32 +47,58 @@ module Window = struct
      resets the canvas). *)
   let set_size ~io =
     let s = !(io.window_size) in
-    if s <> (0, 0) then Jsoo.logical_size := s;
-    let lw, lh = !Jsoo.logical_size in
+    if s <> (0, 0) then windowed_size := s;
     let canvas = io.backend.canvas in
     let el = Canvas.to_el canvas in
-    El.set_inline_style El.Style.width (px lw) el;
-    El.set_inline_style El.Style.height (px lh) el;
-    (* When fullscreen stretches the element to a screen with a different
-       aspect ratio, display the bitmap letterboxed at its own aspect ratio,
-       centered, with black bars. *)
-    El.set_inline_style (Jstr.v "object-fit") (Jstr.v "contain") el;
-    El.set_inline_style (Jstr.v "background-color") (Jstr.v "black") el;
-    let cw = El.inner_w el and ch = El.inner_h el in
-    (* A detached or hidden canvas measures 0: fall back to the logical size. *)
-    let cw = if cw > 0. then cw else float lw in
-    let ch = if ch > 0. then ch else float lh in
-    (* Size the backing store to the letterboxed display rectangle: the
-       largest logical-aspect rectangle fitting the element. [object-fit:
-       contain] then shows it 1:1, so rendering stays at the on-screen
-       resolution. *)
-    let fit = Float.min (cw /. float lw) (ch /. float lh) in
     let dpr = Brr.Window.device_pixel_ratio G.window in
-    let bw = int_of_float (Float.round (fit *. float lw *. dpr)) in
-    let bh = int_of_float (Float.round (fit *. float lh *. dpr)) in
-    if bw <> Canvas.w canvas then Canvas.set_w canvas bw;
-    if bh <> Canvas.h canvas then Canvas.set_h canvas bh;
-    Jsoo.device_scale := (float bw /. float lw, float bh /. float lh)
+    El.set_inline_style (Jstr.v "background-color") (Jstr.v "black") el;
+    if Option.is_some (Document.fullscreen_element G.document) then begin
+      (* In fullscreen the UA stylesheet stretches the element to the whole
+         screen. Rather than uniformly scaling the fixed logical size up (which
+         makes HUDs and menus grow with everything else), adopt the screen as
+         the logical coordinate space: fixed-size UI keeps its pixel size and
+         the extra room goes to the game. Let the element fill the screen and
+         measure it. *)
+      El.remove_inline_style El.Style.width el;
+      El.remove_inline_style El.Style.height el;
+      El.remove_inline_style (Jstr.v "object-fit") el;
+      let cw = El.inner_w el and ch = El.inner_h el in
+      (* A detached or not-yet-fullscreen element measures 0: fall back to the
+         windowed size until the browser reports the real dimensions. *)
+      let lw, lh = !windowed_size in
+      let lw = if cw > 0. then int_of_float (Float.round cw) else lw in
+      let lh = if ch > 0. then int_of_float (Float.round ch) else lh in
+      Jsoo.logical_size := (lw, lh);
+      let bw = int_of_float (Float.round (float lw *. dpr)) in
+      let bh = int_of_float (Float.round (float lh *. dpr)) in
+      if bw <> Canvas.w canvas then Canvas.set_w canvas bw;
+      if bh <> Canvas.h canvas then Canvas.set_h canvas bh;
+      Jsoo.device_scale := (dpr, dpr)
+    end
+    else begin
+      Jsoo.logical_size := !windowed_size;
+      let lw, lh = !Jsoo.logical_size in
+      El.set_inline_style El.Style.width (px lw) el;
+      El.set_inline_style El.Style.height (px lh) el;
+      (* When fullscreen stretches the element to a screen with a different
+         aspect ratio, display the bitmap letterboxed at its own aspect ratio,
+         centered, with black bars. *)
+      El.set_inline_style (Jstr.v "object-fit") (Jstr.v "contain") el;
+      let cw = El.inner_w el and ch = El.inner_h el in
+      (* A detached or hidden canvas measures 0: fall back to the logical size. *)
+      let cw = if cw > 0. then cw else float lw in
+      let ch = if ch > 0. then ch else float lh in
+      (* Size the backing store to the letterboxed display rectangle: the
+         largest logical-aspect rectangle fitting the element. [object-fit:
+         contain] then shows it 1:1, so rendering stays at the on-screen
+         resolution. *)
+      let fit = Float.min (cw /. float lw) (ch /. float lh) in
+      let bw = int_of_float (Float.round (fit *. float lw *. dpr)) in
+      let bh = int_of_float (Float.round (fit *. float lh *. dpr)) in
+      if bw <> Canvas.w canvas then Canvas.set_w canvas bw;
+      if bh <> Canvas.h canvas then Canvas.set_h canvas bh;
+      Jsoo.device_scale := (float bw /. float lw, float bh /. float lh)
+    end
 
   let size ~io:_ =
     let w, h = !Jsoo.logical_size in
