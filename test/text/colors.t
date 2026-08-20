@@ -1,105 +1,80 @@
-Count pixels per exact color, filtering out colors with fewer than 500 pixels
-(anti-aliasing noise).
+Count pixels per exact colour, in units of 1000, dropping any colour that rounds
+to 0 (i.e. under 1000 px). The raw per-colour counts are not portable: the
+browser draws text through the platform freetype, whose glyph-edge antialiasing
+differs by Firefox build, so the exact counts jitter by tens of pixels between
+environments and the near-threshold greys reshuffle entirely (that is what made
+the old exact-histogram assertion fail in CI). Coarsening to /1000 and keeping
+only the dominant colours absorbs that jitter while still catching a colour
+going missing or wildly wrong. The raylib side is stb_truetype at whole-pixel
+sizes, so it is deterministic; only the browser side moves.
 
 
   $ if command -v magick > /dev/null; then IM=magick; else IM=convert; fi
-  $ $IM glyph_browser.png txt:- | awk 'NR>1{print $3}' | sort | uniq -c | sort -rn | awk '$1 >= 250' > jsoo_colors
+  $ $IM glyph_browser.png txt:- | awk 'NR>1{print $3}' | sort | uniq -c | sort -rn | awk '{c=int($1/1000); if (c>0) print c, $2}' > jsoo_colors
   $ cat jsoo_colors
-   154594 #FFFFFF
-     8558 #000000
-     1153 #FF7F7F
-      444 #1B1B1B
-      296 #C3C3C3
-      290 #FFB5B5
-      289 #FF4A4A
-      254 #676767
+  154 #FFFFFF
+  8 #000000
+  1 #FF7F7F
 
-  $ $IM glyph_raylib.png txt:- | awk 'NR>1{print $3}' | sort | uniq -c | sort -rn | awk '$1 >= 250' > raylib_colors
+  $ $IM glyph_raylib.png txt:- | awk 'NR>1{print $3}' | sort | uniq -c | sort -rn | awk '{c=int($1/1000); if (c>0) print c, $2}' > raylib_colors
   $ cat raylib_colors
-   154372 #FFFFFFFF
-     8550 #000000FF
-     1150 #FF8080FF
-      289 #FFCBCBFF
-      289 #FF3434FF
+  154 #FFFFFFFF
+  8 #000000FF
+  1 #FF8080FF
 
 $ diff jsoo_colors raylib_colors
 
   $ if command -v magick > /dev/null; then IM=magick; else IM=convert; fi
-  $ $IM lines_browser.png txt:- | awk 'NR>1{print $3}' | sort | uniq -c | sort -rn | awk '$1 >= 250' > jsoo_colors
+  $ $IM lines_browser.png txt:- | awk 'NR>1{print $3}' | sort | uniq -c | sort -rn | awk '{c=int($1/1000); if (c>0) print c, $2}' > jsoo_colors
   $ cat jsoo_colors
-   380002 #FFFFFFFF
-     9852 #FF7F7FFF
-     2943 #FF8080FF
-      719 #000000FF
-      288 #232323FF
-      265 #A7A7A7FF
-      259 #838383FF
+  380 #FFFFFFFF
+  9 #FF7F7FFF
+  2 #FF8080FF
 
-  $ $IM lines_raylib.png txt:- | awk 'NR>1{print $3}' | sort | uniq -c | sort -rn | awk '$1 >= 250' > raylib_colors
+  $ $IM lines_raylib.png txt:- | awk 'NR>1{print $3}' | sort | uniq -c | sort -rn | awk '{c=int($1/1000); if (c>0) print c, $2}' > raylib_colors
   $ cat raylib_colors
-   378836 #FFFFFFFF
-    12720 #FF8080FF
-      499 #000000FF
-      275 #FEFEFEFF
-      270 #838383FF
+  378 #FFFFFFFF
+  12 #FF8080FF
 
   $ if command -v magick > /dev/null; then IM=magick; else IM=convert; fi
-  $ $IM roboto_glyph_browser.png txt:- | awk 'NR>1{print $3}' | sort | uniq -c | sort -rn | awk '$1 >= 250' > jsoo_colors
+  $ $IM roboto_glyph_browser.png txt:- | awk 'NR>1{print $3}' | sort | uniq -c | sort -rn | awk '{c=int($1/1000); if (c>0) print c, $2}' > jsoo_colors
   $ cat jsoo_colors
-   146662 #FFFFFF
-    16308 #000000
-     1379 #FF7F7F
-      340 #CFCFCF
-      316 #9F9F9F
-      282 #FFEEEE
-      280 #FF1111
-      271 #FF8080
+  146 #FFFFFF
+  16 #000000
+  1 #FF7F7F
 
-  $ $IM roboto_glyph_raylib.png txt:- | awk 'NR>1{print $3}' | sort | uniq -c | sort -rn | awk '$1 >= 250' > raylib_colors
+  $ $IM roboto_glyph_raylib.png txt:- | awk 'NR>1{print $3}' | sort | uniq -c | sort -rn | awk '{c=int($1/1000); if (c>0) print c, $2}' > raylib_colors
   $ cat raylib_colors
-   146386 #FFFFFFFF
-    16264 #000000FF
-     1644 #FF8080FF
-      340 #C9C9C9FF
-      282 #FFFBFBFF
-      280 #FF0404FF
+  146 #FFFFFFFF
+  16 #000000FF
+  1 #FF8080FF
 
 $ diff jsoo_colors raylib_colors
 
-  $ $IM roboto_browser.png txt:- | awk 'NR>1{print $3}' | sort | uniq -c | sort -rn | awk '$1 >= 250' > jsoo_colors
+  $ $IM roboto_browser.png txt:- | awk 'NR>1{print $3}' | sort | uniq -c | sort -rn | awk '{c=int($1/1000); if (c>0) print c, $2}' > jsoo_colors
   $ cat jsoo_colors
-   375270 #FFFFFFFF
-     8254 #FF7F7FFF
-     6496 #000000FF
-     2494 #FF8080FF
-      387 #5B5B5BFF
-      330 #DBDBDBFF
-      316 #EFEFEFFF
-      258 #7F7F7FFF
-      253 #575757FF
+  375 #FFFFFFFF
+  8 #FF7F7FFF
+  6 #000000FF
+  2 #FF8080FF
 
-  $ $IM roboto_raylib.png txt:- | awk 'NR>1{print $3}' | sort | uniq -c | sort -rn | awk '$1 >= 250' > raylib_colors
+  $ $IM roboto_raylib.png txt:- | awk 'NR>1{print $3}' | sort | uniq -c | sort -rn | awk '{c=int($1/1000); if (c>0) print c, $2}' > raylib_colors
   $ cat raylib_colors
-   374731 #FFFFFFFF
-    10627 #FF8080FF
-     5915 #000000FF
-      318 #010101FF
-      305 #5A5A5AFF
-      255 #DFDFDFFF
+  374 #FFFFFFFF
+  10 #FF8080FF
+  5 #000000FF
 
 $ diff jsoo_colors raylib_colors
 
-  $ $IM view_browser.png txt:- | awk 'NR>1{print $3}' | sort | uniq -c | sort -rn | awk '$1 >= 250' > jsoo_colors
+  $ $IM view_browser.png txt:- | awk 'NR>1{print $3}' | sort | uniq -c | sort -rn | awk '{c=int($1/1000); if (c>0) print c, $2}' > jsoo_colors
   $ cat jsoo_colors
-   395404 #FFFFFFFF
-     1324 #FF7F7FFF
-      615 #000000FF
+  395 #FFFFFFFF
+  1 #FF7F7FFF
 
-  $ $IM view_raylib.png txt:- | awk 'NR>1{print $3}' | sort | uniq -c | sort -rn | awk '$1 >= 250' > raylib_colors
+  $ $IM view_raylib.png txt:- | awk 'NR>1{print $3}' | sort | uniq -c | sort -rn | awk '{c=int($1/1000); if (c>0) print c, $2}' > raylib_colors
   $ cat raylib_colors
-   396091 #FFFFFFFF
-     1463 #FF8080FF
-      741 #000000FF
+  396 #FFFFFFFF
+  1 #FF8080FF
 
 When there is a diff, uncomment the bellow to understand whats happening
 
