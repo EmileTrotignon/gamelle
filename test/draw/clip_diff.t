@@ -22,7 +22,7 @@ every vertex is kept like the browser and the ~400-vertex blob fills completely.
 Every clip is back at the antialiasing-jitter floor:
 
   $ odiff clip_jsoo.png clip_raylib.png 2>&1 | awk '/identical/{print 0} /different/{print int($2/100)}'
-  97
+  96
 
 The antialiasing-filtered count sits at a low per-environment floor; as in diff.t
 we assert only that we are still at it (a fixed /100 bucket boundary is flaky when

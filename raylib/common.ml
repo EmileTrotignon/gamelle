@@ -3,6 +3,45 @@ module Transform = Gamelle_common.Transform
 open Gamelle_common
 open Geometry
 
+(* --- Raw OpenGL stencil entry points ---
+
+   raylib/rlgl expose no stencil control, so we bind the (GL 1.0/2.0 core)
+   stencil functions directly. They resolve from the already-loaded libGL — the
+   process has a live GL context (raylib created it) — via the default dynamic
+   symbol table, so no explicit [Dl.dlopen] is needed. Used by [with_scissor] to
+   clip against arbitrary polygons through the stencil buffer (see there). *)
+module Gl = struct
+  open Ctypes
+  open Foreign
+
+  let enable = foreign "glEnable" (int @-> returning void)
+  let disable = foreign "glDisable" (int @-> returning void)
+  let stencil_mask = foreign "glStencilMask" (int @-> returning void)
+  let stencil_func = foreign "glStencilFunc" (int @-> int @-> int @-> returning void)
+  let stencil_op = foreign "glStencilOp" (int @-> int @-> int @-> returning void)
+
+  let stencil_op_separate =
+    foreign "glStencilOpSeparate" (int @-> int @-> int @-> int @-> returning void)
+
+  let clear = foreign "glClear" (int @-> returning void)
+  let clear_stencil = foreign "glClearStencil" (int @-> returning void)
+
+  (* GLenum / bitfield constants. *)
+  let stencil_test = 0x0B90
+  let stencil_buffer_bit = 0x0400
+  let always = 0x0207
+  let equal = 0x0202
+  let notequal = 0x0205
+  let keep = 0x1E00
+  let replace = 0x1E01
+  let incr_wrap = 0x8507
+  let decr_wrap = 0x8508
+  let front = 0x0404
+  let back = 0x0405
+end
+
+let v2 x y = Raylib.Vector2.create x y
+
 type sized_font = {
   mutable raylib_font : Raylib.Font.t;
   codepoint_set : (int, unit) Hashtbl.t;
@@ -297,6 +336,134 @@ let draw_rt_bbox t bx by bw bh sh =
     (Raylib.Vector2.create (float bx) (float by))
     Raylib.Color.white
 
+(* The intersection of the clip polygons' (clamped) bounding boxes, as
+   [(bx,by,bw,bh)] screen pixels, or [None] when empty: a pixel outside any one
+   polygon's box is clipped away, so only their common box can hold visible
+   pixels. Bounding the work to this box keeps every clip pass local. *)
+let clip_bbox pts_list sw sh =
+  let minx = ref 0. and miny = ref 0. in
+  let maxx = ref (float sw) and maxy = ref (float sh) in
+  List.iter
+    (fun pts ->
+      let pminx = ref infinity and pminy = ref infinity in
+      let pmaxx = ref neg_infinity and pmaxy = ref neg_infinity in
+      Array.iter
+        (fun (x, y) ->
+          pminx := Float.min !pminx x;
+          pminy := Float.min !pminy y;
+          pmaxx := Float.max !pmaxx x;
+          pmaxy := Float.max !pmaxy y)
+        pts;
+      minx := Float.max !minx !pminx;
+      miny := Float.max !miny !pminy;
+      maxx := Float.min !maxx !pmaxx;
+      maxy := Float.min !maxy !pmaxy)
+    pts_list;
+  let bx = int_of_float (Float.max 0. !minx) in
+  let by = int_of_float (Float.max 0. !miny) in
+  let bw = min (int_of_float (Float.min !maxx (float sw)) + 2 - bx) (sw - bx) in
+  let bh = min (int_of_float (Float.min !maxy (float sh)) + 2 - by) (sh - by) in
+  if bw > 0 && bh > 0 then Some (bx, by, bw, bh) else None
+
+(* --- Fallback: the offscreen signed-distance mask (retained for clip stacks
+   deeper than the stencil path handles). Renders the draw into an offscreen
+   layer, multiplies in the memoised coverage mask, and composites back. --- *)
+let with_scissor_mask ~io f pts_list bx by bw bh =
+  let sh = Raylib.get_screen_height () in
+  let mask = get_clip_mask io.clip pts_list bx by bw bh in
+  let rt = get_rt scratch_rt in
+  Raylib.begin_texture_mode rt;
+  Raylib.begin_scissor_mode bx by bw bh;
+  Raylib.clear_background Raylib.Color.blank;
+  Raylib.Rlgl.set_blend_factors_separate Raylib.Rlgl.BlendFactor.src_alpha
+    Raylib.Rlgl.BlendFactor.one_minus_src_alpha Raylib.Rlgl.BlendFactor.one
+    Raylib.Rlgl.BlendFactor.one_minus_src_alpha Raylib.Rlgl.BlendFunction.func_add
+    Raylib.Rlgl.BlendFunction.func_add;
+  Raylib.begin_blend_mode Raylib.BlendMode.Custom_separate;
+  f ();
+  Raylib.end_blend_mode ();
+  Raylib.Rlgl.set_blend_factors Raylib.Rlgl.BlendFactor.zero
+    Raylib.Rlgl.BlendFactor.src_color Raylib.Rlgl.BlendFunction.func_add;
+  Raylib.begin_blend_mode Raylib.BlendMode.Custom;
+  draw_rt_bbox (Raylib.RenderTexture.texture mask) bx by bw bh sh;
+  Raylib.end_blend_mode ();
+  Raylib.end_scissor_mode ();
+  Raylib.end_texture_mode ();
+  Raylib.begin_blend_mode Raylib.BlendMode.Alpha_premultiply;
+  draw_rt_bbox (Raylib.RenderTexture.texture rt) bx by bw bh sh;
+  Raylib.end_blend_mode ()
+
+(* --- Stencil clip path (fast, the default) ---
+
+   Instead of compositing every draw through a per-fragment edge-loop shader (a
+   full offscreen round-trip per draw, whose mask costs O(pixels x edges) — the
+   bottleneck on oedipus's ~500-vertex visibility polygon), build the clip
+   region once into the GPU stencil buffer, then draw primitives normally with
+   the stencil test rejecting everything outside. This is the raylib analogue of
+   the browser backend's native [C.clip]: establish coverage once, apply it
+   cheaply. Each clip polygon's non-zero-winding interior is stamped into its own
+   result bit; a pixel passes only where every used result bit is set. MSAA makes
+   the per-sample stencil an antialiased boundary, matching the browser. *)
+
+(* Which clip stack currently lives in the stencil buffer (by list identity and
+   screen size): rebuilt only when the active region changes, like [mask_polys]. *)
+let stencil_polys : Geometry.Polygon.t list ref = ref []
+let stencil_size : (int * int) ref = ref (0, 0)
+
+(* Low [scratch_mask] bits are winding scratch, shared across polygons; each
+   polygon then owns one "inside" result bit. Up to 5 polygons (bits 3..7);
+   deeper stacks fall back to the mask path. *)
+let scratch_mask = 0x07
+let result_bit i = 1 lsl (3 + i)
+let max_stencil_polys = 5
+
+let build_stencil pts_list bx by bw bh =
+  Raylib.Rlgl.draw_render_batch_active ();
+  Raylib.begin_scissor_mode bx by bw bh;
+  Raylib.Rlgl.color_mask false false false false;
+  (* Two-sided winding needs both faces rasterised, so culling must be off. *)
+  Raylib.Rlgl.disable_backface_culling ();
+  Gl.enable Gl.stencil_test;
+  Gl.stencil_mask 0xFF;
+  Gl.clear_stencil 0;
+  Gl.clear Gl.stencil_buffer_bit;
+  List.iteri
+    (fun i pts ->
+      let rb = result_bit i in
+      (* Non-zero winding of the polygon into the scratch bits: a triangle fan
+         with front faces incrementing and back faces decrementing, so concave
+         and self-overlapping polygons (a pentagram, a visibility blob whose rays
+         cross) come out right — the browser's non-zero canvas-clip rule. *)
+      Gl.stencil_mask scratch_mask;
+      Gl.stencil_func Gl.always 0 0xFF;
+      Gl.stencil_op_separate Gl.front Gl.keep Gl.keep Gl.incr_wrap;
+      Gl.stencil_op_separate Gl.back Gl.keep Gl.keep Gl.decr_wrap;
+      let n = Array.length pts in
+      let x0, y0 = pts.(0) in
+      let v0 = v2 x0 y0 in
+      for k = 1 to n - 2 do
+        let xa, ya = pts.(k) and xb, yb = pts.(k + 1) in
+        Raylib.draw_triangle v0 (v2 xa ya) (v2 xb yb) Raylib.Color.white
+      done;
+      Raylib.Rlgl.draw_render_batch_active ();
+      (* Stamp [rb] where the winding is non-zero. The func ref [rb] carries no
+         scratch bits, so under [scratch_mask] the NOTEQUAL test reads as
+         "scratch <> 0", and REPLACE writes [rb & stencil_mask = rb]. *)
+      Gl.stencil_mask rb;
+      Gl.stencil_func Gl.notequal rb scratch_mask;
+      Gl.stencil_op Gl.keep Gl.keep Gl.replace;
+      Raylib.draw_rectangle bx by bw bh Raylib.Color.white;
+      Raylib.Rlgl.draw_render_batch_active ();
+      (* Reset the scratch bits before the next polygon (result bits kept). *)
+      Gl.stencil_mask scratch_mask;
+      Gl.clear Gl.stencil_buffer_bit)
+    pts_list;
+  Raylib.Rlgl.color_mask true true true true;
+  Raylib.Rlgl.enable_backface_culling ();
+  Gl.disable Gl.stencil_test;
+  Gl.stencil_mask 0xFF;
+  Raylib.end_scissor_mode ()
+
 let with_scissor ~io f =
   match io.clip with
   | [] -> f ()
@@ -313,72 +480,35 @@ let with_scissor ~io f =
       else begin
         let sw = Raylib.get_screen_width ()
         and sh = Raylib.get_screen_height () in
-        (* Bound the offscreen work to the intersection of the clips' (clamped)
-           bounding boxes: a pixel outside any one polygon's box is clipped
-           away, so only their common box can contain visible pixels. *)
-        let minx = ref 0. and miny = ref 0. in
-        let maxx = ref (float sw) and maxy = ref (float sh) in
-        List.iter
-          (fun pts ->
-            let pminx = ref infinity and pminy = ref infinity in
-            let pmaxx = ref neg_infinity and pmaxy = ref neg_infinity in
-            Array.iter
-              (fun (x, y) ->
-                pminx := Float.min !pminx x;
-                pminy := Float.min !pminy y;
-                pmaxx := Float.max !pmaxx x;
-                pmaxy := Float.max !pmaxy y)
-              pts;
-            minx := Float.max !minx !pminx;
-            miny := Float.max !miny !pminy;
-            maxx := Float.min !maxx !pmaxx;
-            maxy := Float.min !maxy !pmaxy)
-          pts_list;
-        let bx = int_of_float (Float.max 0. !minx) in
-        let by = int_of_float (Float.max 0. !miny) in
-        let bw =
-          min (int_of_float (Float.min !maxx (float sw)) + 2 - bx) (sw - bx)
-        in
-        let bh =
-          min (int_of_float (Float.min !maxy (float sh)) + 2 - by) (sh - by)
-        in
-        if bw > 0 && bh > 0 then begin
-          let mask = get_clip_mask polys pts_list bx by bw bh in
-          let rt = get_rt scratch_rt in
-          (* Render the draw into the (bbox-cleared) offscreen layer. Colour is
-             composited normally, but the alpha channel accumulates as coverage
-             (src factor [one]) so the layer ends up with premultiplied colour
-             over a correct alpha — needed to composite it back without the
-             double-darkening a plain alpha blend into transparent would give. *)
-          Raylib.begin_texture_mode rt;
-          Raylib.begin_scissor_mode bx by bw bh;
-          Raylib.clear_background Raylib.Color.blank;
-          Raylib.Rlgl.set_blend_factors_separate
-            Raylib.Rlgl.BlendFactor.src_alpha
-            Raylib.Rlgl.BlendFactor.one_minus_src_alpha
-            Raylib.Rlgl.BlendFactor.one
-            Raylib.Rlgl.BlendFactor.one_minus_src_alpha
-            Raylib.Rlgl.BlendFunction.func_add
-            Raylib.Rlgl.BlendFunction.func_add;
-          Raylib.begin_blend_mode Raylib.BlendMode.Custom_separate;
-          f ();
-          Raylib.end_blend_mode ();
-          (* Multiply the drawn layer by the clip coverage: with source factor
-             [zero] and destination factor [src_color], each channel becomes
-             [scratch * mask] — the premultiplied colour scaled by coverage,
-             exactly what compositing through the clip shader used to produce,
-             but now a single cheap texture multiply instead of a per-fragment
-             edge loop. *)
-          Raylib.Rlgl.set_blend_factors Raylib.Rlgl.BlendFactor.zero
-            Raylib.Rlgl.BlendFactor.src_color Raylib.Rlgl.BlendFunction.func_add;
-          Raylib.begin_blend_mode Raylib.BlendMode.Custom;
-          draw_rt_bbox (Raylib.RenderTexture.texture mask) bx by bw bh sh;
-          Raylib.end_blend_mode ();
-          Raylib.end_scissor_mode ();
-          Raylib.end_texture_mode ();
-          (* Composite the clipped layer back with a premultiplied-alpha blend. *)
-          Raylib.begin_blend_mode Raylib.BlendMode.Alpha_premultiply;
-          draw_rt_bbox (Raylib.RenderTexture.texture rt) bx by bw bh sh;
-          Raylib.end_blend_mode ()
-        end
+        match clip_bbox pts_list sw sh with
+        | None -> ()
+        | Some (bx, by, bw, bh) ->
+            if List.length polys > max_stencil_polys then
+              with_scissor_mask ~io f pts_list bx by bw bh
+            else begin
+              (* Rebuild the stencil only when the active region changes. *)
+              if not (!stencil_polys == polys && !stencil_size = (sw, sh)) then begin
+                build_stencil pts_list bx by bw bh;
+                stencil_polys := polys;
+                stencil_size := (sw, sh)
+              end;
+              let all =
+                List.fold_left
+                  (fun a i -> a lor result_bit i)
+                  0
+                  (List.init (List.length polys) Fun.id)
+              in
+              (* Draw the primitive normally, kept only where every result bit is
+                 set (i.e. inside every clip polygon). *)
+              Gl.enable Gl.stencil_test;
+              Gl.stencil_mask 0x00;
+              Gl.stencil_func Gl.equal all all;
+              Gl.stencil_op Gl.keep Gl.keep Gl.keep;
+              Raylib.begin_scissor_mode bx by bw bh;
+              f ();
+              Raylib.Rlgl.draw_render_batch_active ();
+              Raylib.end_scissor_mode ();
+              Gl.disable Gl.stencil_test;
+              Gl.stencil_mask 0xFF
+            end
       end
