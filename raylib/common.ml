@@ -17,11 +17,15 @@ module Gl = struct
   let enable = foreign "glEnable" (int @-> returning void)
   let disable = foreign "glDisable" (int @-> returning void)
   let stencil_mask = foreign "glStencilMask" (int @-> returning void)
-  let stencil_func = foreign "glStencilFunc" (int @-> int @-> int @-> returning void)
+
+  let stencil_func =
+    foreign "glStencilFunc" (int @-> int @-> int @-> returning void)
+
   let stencil_op = foreign "glStencilOp" (int @-> int @-> int @-> returning void)
 
   let stencil_op_separate =
-    foreign "glStencilOpSeparate" (int @-> int @-> int @-> int @-> returning void)
+    foreign "glStencilOpSeparate"
+      (int @-> int @-> int @-> int @-> returning void)
 
   let clear = foreign "glClear" (int @-> returning void)
   let clear_stencil = foreign "glClearStencil" (int @-> returning void)
@@ -377,8 +381,8 @@ let with_scissor_mask ~io f pts_list bx by bw bh =
   Raylib.clear_background Raylib.Color.blank;
   Raylib.Rlgl.set_blend_factors_separate Raylib.Rlgl.BlendFactor.src_alpha
     Raylib.Rlgl.BlendFactor.one_minus_src_alpha Raylib.Rlgl.BlendFactor.one
-    Raylib.Rlgl.BlendFactor.one_minus_src_alpha Raylib.Rlgl.BlendFunction.func_add
-    Raylib.Rlgl.BlendFunction.func_add;
+    Raylib.Rlgl.BlendFactor.one_minus_src_alpha
+    Raylib.Rlgl.BlendFunction.func_add Raylib.Rlgl.BlendFunction.func_add;
   Raylib.begin_blend_mode Raylib.BlendMode.Custom_separate;
   f ();
   Raylib.end_blend_mode ();
