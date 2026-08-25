@@ -1160,9 +1160,7 @@ module Input : sig
   (** [mouse_delta ~io] returns the mouse movement since the previous frame, in
       raw screen pixels (no view transform applied). Unlike {!mouse_pos}, it
       stays meaningful when the mouse is captured with {!Window.capture_mouse}:
-      the movement is unbounded, as in a first-person game.
-
-      Not implemented on the sdl backend yet, where it is always zero. *)
+      the movement is unbounded, as in a first-person game. *)
 
   val wheel_delta : io:io -> float
   (** [wheel_delta ~io] returns the amount of change of the mouse wheel. *)
@@ -1579,7 +1577,7 @@ module Window : sig
       On html5, browsers only grant the underlying pointer lock from a user
       gesture, so the capture may only take effect at the player's next click on
       the game; they can also always break it with Escape (the next click
-      re-captures). Not implemented on the sdl backend yet, where it is a no-op.
+      re-captures).
   *)
 
   val is_mouse_captured : io:io -> bool

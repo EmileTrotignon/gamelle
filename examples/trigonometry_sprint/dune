@@ -17,19 +17,6 @@
    (run echo "include Trigonometry_sprint"))))
 
 (executable
- (name trigonometry_sprint_sdl)
- (modules trigonometry_sprint_sdl)
- (optional)
- (libraries trigonometry_sprint gamelle.sdl))
-
-(rule
- (target trigonometry_sprint_sdl.ml)
- (action
-  (with-stdout-to
-   trigonometry_sprint_sdl.ml
-   (run echo "include Trigonometry_sprint"))))
-
-(executable
  (name trigonometry_sprint_js)
  (modules trigonometry_sprint_js)
  (modes js)

@@ -17,7 +17,7 @@
 (executable
  (name js_test_bin)
  (modules js_test_bin)
- (libraries js_test gamelle_sdl))
+ (libraries js_test gamelle_raylib))
 
 (executable
  (name js_test_js)
@@ -40,9 +40,9 @@
 (executable
  (name test_physics)
  (modules test_physics)
- (libraries gamelle.sdl))
+ (libraries gamelle.raylib))
 
 (library
  (name test_anim)
  (modules test_anim)
- (libraries gamelle.sdl))
+ (libraries gamelle.raylib))

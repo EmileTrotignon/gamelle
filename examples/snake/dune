@@ -17,19 +17,6 @@
    (run echo "include Snake"))))
 
 (executable
- (name snake_sdl)
- (modules snake_sdl)
- (optional)
- (libraries snake gamelle.sdl))
-
-(rule
- (target snake_sdl.ml)
- (action
-  (with-stdout-to
-   snake_sdl.ml
-   (run echo "include Snake"))))
-
-(executable
  (name snake_js)
  (modules snake_js)
  (modes js)

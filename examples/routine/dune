@@ -17,19 +17,6 @@
    (run echo "include Routine"))))
 
 (executable
- (name routine_sdl)
- (modules routine_sdl)
- (optional)
- (libraries routine gamelle.sdl))
-
-(rule
- (target routine_sdl.ml)
- (action
-  (with-stdout-to
-   routine_sdl.ml
-   (run echo "include Routine"))))
-
-(executable
  (name routine_js)
  (modules routine_js)
  (modes js)

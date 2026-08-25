@@ -17,19 +17,6 @@
    (run echo "include Pong"))))
 
 (executable
- (name pong_sdl)
- (modules pong_sdl)
- (optional)
- (libraries pong gamelle.sdl))
-
-(rule
- (target pong_sdl.ml)
- (action
-  (with-stdout-to
-   pong_sdl.ml
-   (run echo "include Pong"))))
-
-(executable
  (name pong_js)
  (modules pong_js)
  (modes js)

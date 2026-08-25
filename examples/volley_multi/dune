@@ -17,19 +17,6 @@
    (run echo "include Volley_multi"))))
 
 (executable
- (name volley_multi_sdl)
- (modules volley_multi_sdl)
- (optional)
- (libraries volley_multi gamelle.sdl))
-
-(rule
- (target volley_multi_sdl.ml)
- (action
-  (with-stdout-to
-   volley_multi_sdl.ml
-   (run echo "include Volley_multi"))))
-
-(executable
  (name volley_multi_js)
  (modules volley_multi_js)
  (modes js)

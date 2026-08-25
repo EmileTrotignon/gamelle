@@ -17,19 +17,6 @@
    (run echo "include Volley"))))
 
 (executable
- (name volley_sdl)
- (modules volley_sdl)
- (optional)
- (libraries volley gamelle.sdl))
-
-(rule
- (target volley_sdl.ml)
- (action
-  (with-stdout-to
-   volley_sdl.ml
-   (run echo "include Volley"))))
-
-(executable
  (name volley_js)
  (modules volley_js)
  (modes js)

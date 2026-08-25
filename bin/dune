@@ -15,8 +15,8 @@
   (select
    asset_editor.ml
    from
-   (gamelle.sdl -> asset_editor.available.ml)
-   (!gamelle.sdl -> asset_editor.unavailable.ml))
+   (gamelle.raylib -> asset_editor.available.ml)
+   (!gamelle.raylib -> asset_editor.unavailable.ml))
   (select
    hotreload.ml
    from

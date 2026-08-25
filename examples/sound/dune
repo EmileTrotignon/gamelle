@@ -17,19 +17,6 @@
    (run echo "include Sound"))))
 
 (executable
- (name sound_sdl)
- (modules sound_sdl)
- (optional)
- (libraries sound gamelle.sdl))
-
-(rule
- (target sound_sdl.ml)
- (action
-  (with-stdout-to
-   sound_sdl.ml
-   (run echo "include Sound"))))
-
-(executable
  (name sound_js)
  (modules sound_js)
  (modes js)

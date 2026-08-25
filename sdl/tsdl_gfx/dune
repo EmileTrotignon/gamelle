@@ -1,7 +1,0 @@
-(library
- (name tsdl_gfx)
- (optional)
- (package gamelle)
- (modules tsdl_gfx)
- (libraries ctypes tsdl result)
- (c_library_flags -Wl,--no-as-needed -lSDL2_gfx))

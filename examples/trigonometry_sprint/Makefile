@@ -1,4 +1,4 @@
-.PHONY: run run-sdl html
+.PHONY: run html
 
 run-bin:
 	dune exec --root=. ./trigonometry_sprint_bin.exe

@@ -28,6 +28,15 @@ SERVERNUM=$((PORT - 4344))
 # sized to the scene's drawing box, so it also tells us how big to capture the
 # raylib window. Only the geckodriver we start is ever killed (it cleans up its
 # own firefox children); we never touch other firefox processes.
+#
+# Serialize the browser capture across the parallel comparison rules: launching
+# several headless Firefox instances at once intermittently makes geckodriver
+# lose the marionette handshake ("Failed to decode response from marionette")
+# under CPU/memory contention. A shared advisory lock lets exactly one browser
+# run at a time while the raylib Xvfb captures below still run in parallel. The
+# lock is held only around the geckodriver+Firefox interaction, then released.
+exec {LOCK_FD}>"${TMPDIR:-/tmp}/gamelle-browser-screenshot.lock"
+flock "$LOCK_FD"
 geckodriver --port "$PORT" </dev/null >/dev/null 2>&1 &
 GECKO=$!
 trap 'kill "$GECKO" 2>/dev/null || true' EXIT
@@ -41,6 +50,12 @@ done
 # directory do not clobber each other.
 "$SCREENSHOT_EXE" "$HTML" "$PORT" >"${P}browser_raw.png"
 "$DUMP_EXE" "$HTML" "$PORT" >"${P}browser_sizes.txt"
+# Done with the browser: stop geckodriver (and its Firefox) and drop the lock so
+# the next comparison rule can take its turn while we capture raylib below.
+kill "$GECKO" 2>/dev/null || true
+trap - EXIT
+flock -u "$LOCK_FD"
+exec {LOCK_FD}>&-
 # The element screenshot includes the 1px canvas border; crop it off. -strip (here
 # and below) drops the date/tIME chunks ImageMagick stamps from the file mtime,
 # which would otherwise make every promoted PNG differ in git even when the pixels

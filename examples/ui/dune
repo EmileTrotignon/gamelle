@@ -17,19 +17,6 @@
    (run echo "include Ui"))))
 
 (executable
- (name ui_sdl)
- (modules ui_sdl)
- (optional)
- (libraries ui gamelle.sdl))
-
-(rule
- (target ui_sdl.ml)
- (action
-  (with-stdout-to
-   ui_sdl.ml
-   (run echo "include Ui"))))
-
-(executable
  (name ui_js)
  (modules ui_js)
  (modes js)

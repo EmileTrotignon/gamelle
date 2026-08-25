@@ -1,4 +1,4 @@
-.PHONY: run run-sdl html
+.PHONY: run html
 
 run-bin:
 	dune exec --root=. ./routine_bin.exe

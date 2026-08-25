@@ -1,4 +1,4 @@
-.PHONY: run run-sdl html
+.PHONY: run html
 
 run-bin:
 	dune exec --root=. ./morpion_bin.exe

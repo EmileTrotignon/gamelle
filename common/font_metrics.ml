@@ -1,7 +1,7 @@
 (* Backend-agnostic text metrics and layout, shared by the raylib and browser
    backends so they size and position glyphs identically. Everything is read from
    the font's otfm tables and is pure (no GL/canvas), which is why it lives in
-   common. The SDL backend ignores this and rasterises through SDL_ttf instead.
+   common.
 
    Both backends render at the same integer pixel height [H = round (size *.
    em_scale)] and advance the pen by the font's exact per-glyph [hmtx] advances

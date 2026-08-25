@@ -17,19 +17,6 @@
    (run echo "include Morpion"))))
 
 (executable
- (name morpion_sdl)
- (modules morpion_sdl)
- (optional)
- (libraries morpion gamelle.sdl))
-
-(rule
- (target morpion_sdl.ml)
- (action
-  (with-stdout-to
-   morpion_sdl.ml
-   (run echo "include Morpion"))))
-
-(executable
  (name morpion_js)
  (modules morpion_js)
  (modes js)
