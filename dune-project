@@ -55,15 +55,6 @@
  (depopts
   (inotify
    (>= 2.1))
-  (tsdl
-   (>= 1.0.0))
-  (tsdl-image
-   (>= 0.6))
-  (tsdl-mixer
-   (>= 0.6))
-  (tsdl-ttf
-   (>= 0.6))
-  conf-sdl2-gfx
   (raylib
    (>= 2.2.1))
   (ctypes-foreign
@@ -82,11 +73,7 @@
    (>= 2.17))))
 
 (package
- (name conf-sdl2-gfx)
- (allow_empty))
-
-(package
  (name gamelle-all)
  (synopsis "Gamelle with all optional deps")
- (depends gamelle raylib nanosvg ctypes ctypes-foreign inotify tsdl tsdl-image tsdl-mixer tsdl-ttf conf-sdl2-gfx lwt uri conduit-lwt-unix tls-lwt websocket-lwt-unix)
+ (depends gamelle raylib nanosvg ctypes ctypes-foreign inotify lwt uri conduit-lwt-unix tls-lwt websocket-lwt-unix)
  (allow_empty))
