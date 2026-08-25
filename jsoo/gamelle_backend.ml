@@ -155,23 +155,19 @@ let run ~canvas state update =
   let io = make_io backend in
   let clock_ref = ref 0 in
 
-  (* Record when the tab hides and how long it stayed hidden, so the frame that
-     resumes measures only the time the game was actually visible. *)
+  (* Note only *when* the tab goes hidden. How long it stayed hidden is worked
+     out by the loop itself when it resumes (see below) — doing it here, in the
+     "became visible" branch, races with the resuming animation frame: that frame
+     can run before this handler does and then measures the whole hidden span as
+     one [dt]. *)
   ignore
     (Ev.listen Ev.visibilitychange
        (fun _ ->
-         let t = Performance.now_ms G.performance /. 1000.0 in
          if
            Jstr.equal
              (Document.visibility_state G.document)
              Document.Visibility_state.hidden
-         then hidden_at := Some t
-         else
-           match !hidden_at with
-           | Some t0 ->
-               hidden_total := !hidden_total +. (t -. t0);
-               hidden_at := None
-           | None -> ())
+         then hidden_at := Some (Performance.now_ms G.performance /. 1000.0))
        (Document.as_target G.document));
 
   let rec animate state =
@@ -180,7 +176,19 @@ let run ~canvas state update =
   and loop state elapsed =
     let open Events_backend in
     let prev_time = !(io.event).time in
-    let now = (elapsed /. 1000.0) -. !hidden_total in
+    let now_raw = elapsed /. 1000.0 in
+    (* [request_animation_frame] does not fire while the tab is hidden, so the
+       loop running again with [hidden_at] still set means precisely that a
+       hidden span just ended: fold it into [hidden_total] right here. Because
+       this happens in the loop, on the same clock the loop reads, it cannot race
+       with the [visibilitychange] handler — and [now] stays monotonic, so [dt]
+       is never negative and never jumps by the hidden duration. *)
+    (match !hidden_at with
+    | Some t0 ->
+        hidden_total := !hidden_total +. (now_raw -. t0);
+        hidden_at := None
+    | None -> ());
+    let now = now_raw -. !hidden_total in
     let frame_dt =
       if !started then now -. !prev_now
       else (
