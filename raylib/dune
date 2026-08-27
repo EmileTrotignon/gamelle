@@ -26,5 +26,6 @@
   lwt.unix
   uri
   conduit-lwt-unix
-  websocket-lwt-unix)
+  websocket
+  gamelle.websocket)
  (implements gamelle))

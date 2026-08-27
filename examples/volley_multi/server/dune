@@ -3,7 +3,8 @@
  (public_name volley-server)
  (libraries
   libvolley
-  websocket-lwt-unix
+  websocket
+  gamelle.websocket
   conduit-lwt-unix
   lwt
   lwt.unix

@@ -19,7 +19,8 @@ depends: [
   "uri"
   "conduit-lwt-unix"
   "tls-lwt"
-  "websocket-lwt-unix"
+  "websocket"
+  "base64"
   "odoc" {with-doc}
 ]
 build: [

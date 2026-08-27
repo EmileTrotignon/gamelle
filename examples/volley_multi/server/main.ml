@@ -62,7 +62,7 @@ type frame_data = {
    predicted inputs the authoritative state already includes; [last_lag] the
    most recent measured round-trip in frames (for the ping log). *)
 type seat = {
-  conn : Websocket_lwt_unix.Connected_client.t;
+  conn : Gamelle_websocket.Connected_client.t;
   conn_id : int; (* connection number, only for the logs *)
   last_seq : int;
   last_lag : int;
@@ -314,7 +314,7 @@ let tick_game g =
 let send_to client msg =
   Lwt.catch
     (fun () ->
-      Websocket_lwt_unix.Connected_client.send client
+      Gamelle_websocket.Connected_client.send client
         (Websocket.Frame.create ~content:msg ()))
     (fun _ -> Lwt.return_unit)
 
@@ -327,7 +327,7 @@ let broadcast g msg =
 let close_client client =
   Lwt.catch
     (fun () ->
-      Websocket_lwt_unix.Connected_client.send client
+      Gamelle_websocket.Connected_client.send client
         (Websocket.Frame.close 1000))
     (fun _ -> Lwt.return_unit)
 
@@ -366,7 +366,7 @@ let attach client ~id ~code slot =
     | Some _ | None -> g
   in
   let rec loop () =
-    let* ws_frame = Websocket_lwt_unix.Connected_client.recv client in
+    let* ws_frame = Gamelle_websocket.Connected_client.recv client in
     match ws_frame.Websocket.Frame.opcode with
     | Websocket.Frame.Opcode.Close ->
         release ();
@@ -395,7 +395,7 @@ let handler client =
   Lwt.catch
     begin fun () ->
       (* The first message must be a [hello] choosing which game to enter. *)
-      let* first = Websocket_lwt_unix.Connected_client.recv client in
+      let* first = Gamelle_websocket.Connected_client.recv client in
       match parse_hello first with
       | Some Create ->
           let code = fresh_code () in
@@ -463,7 +463,7 @@ let () =
   | Some ip -> log "  on the network: ws://%s:%d" ip port
   | None -> log "  (could not determine LAN IP; use this machine's address)");
   let server =
-    Websocket_lwt_unix.establish_server
+    Gamelle_websocket.establish_server
       ~check_request:(fun _ -> true)
       ~mode:(`TCP (`Port port))
       handler

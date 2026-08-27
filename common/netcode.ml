@@ -106,6 +106,9 @@ module Make (Input : Input) (State : State with type input = Input.t) :
    sub-steps, reproducing what a steady 60fps feed would have simulated
    (the held inputs replayed frame by frame) without tunneling. *)
   let step ~dt ~inputs state =
+    if dt < 0. then
+      failwith
+        (Printf.sprintf "Netcode step: dt has to be positive, it was %f" dt);
     let n = max 1 (int_of_float (ceil (dt /. max_step))) in
     let sub = dt /. float_of_int n in
     let rec loop i state =

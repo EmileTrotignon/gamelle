@@ -1577,8 +1577,7 @@ module Window : sig
       On html5, browsers only grant the underlying pointer lock from a user
       gesture, so the capture may only take effect at the player's next click on
       the game; they can also always break it with Escape (the next click
-      re-captures).
-  *)
+      re-captures). *)
 
   val is_mouse_captured : io:io -> bool
   (** [is_mouse_captured ~io] returns [true] if the mouse is effectively

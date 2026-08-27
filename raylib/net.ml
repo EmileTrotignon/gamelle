@@ -75,18 +75,18 @@ let connect url =
           let random_string n =
             String.init n (fun _ -> Char.chr (Random.int 256))
           in
-          let* conn = Websocket_lwt_unix.connect ~random_string client uri in
+          let* conn = Gamelle_websocket.connect ~random_string client uri in
           Atomic.set t.status Connected;
           let rec recv_loop () =
-            let* frame = Websocket_lwt_unix.read conn in
+            let* frame = Gamelle_websocket.read conn in
             let open Websocket.Frame in
             match frame.opcode with
-            | Opcode.Close -> Websocket_lwt_unix.close_transport conn
+            | Opcode.Close -> Gamelle_websocket.close_transport conn
             | Opcode.Ping ->
                 (* Control frame: answer it, don't surface it as a game
                        message. *)
                 let* () =
-                  Websocket_lwt_unix.write conn
+                  Gamelle_websocket.write conn
                     (create ~opcode:Opcode.Pong ~content:frame.content ())
                 in
                 recv_loop ()
@@ -97,12 +97,12 @@ let connect url =
             | Opcode.Ctrl _ | Opcode.Nonctrl _ -> recv_loop ()
           in
           let rec send_loop () =
-            if t.closed then Websocket_lwt_unix.close_transport conn
+            if t.closed then Gamelle_websocket.close_transport conn
             else
               let* () =
                 Lwt_list.iter_s
                   (fun content ->
-                    Websocket_lwt_unix.write conn
+                    Gamelle_websocket.write conn
                       (Websocket.Frame.create ~content ()))
                   (drain t.send_mutex t.send_q)
               in

@@ -69,11 +69,29 @@
   ; it (it is a depopt of conduit); tls-lwt is the pure-OCaml one.
   (tls-lwt
    (>= 1.0.0))
-  (websocket-lwt-unix
-   (>= 2.17))))
+  ; Core websocket frame codec only. The conduit/Lwt transport that
+  ; websocket-lwt-unix would provide is rewritten
+  ; because that package caps cohttp-lwt-unix < 6, which transitively caps
+  ; cmdliner < 2 and so conflicts with wasm_of_ocaml in a shared switch.
+  (websocket
+   (>= 2.17))
+  (base64
+   (>= 3.0.0))))
 
 (package
  (name gamelle-all)
  (synopsis "Gamelle with all optional deps")
- (depends gamelle raylib nanosvg ctypes ctypes-foreign inotify lwt uri conduit-lwt-unix tls-lwt websocket-lwt-unix)
+ (depends
+  gamelle
+  raylib
+  nanosvg
+  ctypes
+  ctypes-foreign
+  inotify
+  lwt
+  uri
+  conduit-lwt-unix
+  tls-lwt
+  websocket
+  base64)
  (allow_empty))

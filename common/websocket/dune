@@ -1,0 +1,16 @@
+; Shared native websocket transport for the raylib backend and the example
+; server. Its own (optional) library rather than part of gamelle_common: it
+; pulls in native-only libs (conduit-lwt-unix, lwt.unix) that must not leak
+; into the jsoo/wasm build, which also depends on gamelle_common.
+;
+; The library name matches its single module so consumers see it directly as
+; [Gamelle_websocket] (no wrapping). Deliberately not named [Websocket_lwt_unix]
+; to avoid shadowing the module of the real websocket-lwt-unix package.
+
+(include_subdirs no)
+
+(library
+ (name gamelle_websocket)
+ (public_name gamelle.websocket)
+ (optional)
+ (libraries websocket conduit-lwt-unix lwt lwt.unix base64))
