@@ -176,7 +176,7 @@ let update_mouse_buttons t e =
       { t with keypressed = insert key t.keypressed }
     else { t with keypressed = remove key t.keypressed }
   in
-  t |> set 0x01 `click_left |> set 0x10 `click_right
+  t |> set 0x01 `click_left |> set 0x02 `click_right
 
 let update_mouse_pos t e =
   let fit, ox, oy = element_to_logical () in
