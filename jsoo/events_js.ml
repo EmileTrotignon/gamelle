@@ -161,21 +161,27 @@ let element_to_logical () =
         let fit = Float.min (cw /. lw) (ch /. lh) in
         (fit, 0.5 *. (cw -. (fit *. lw)), 0.5 *. (ch -. (fit *. lh)))
 
-let update_mouse t e =
+(* Button state is derived from the [buttons] bitmask, but only from
+   [mousedown]/[mouseup] events, where it is reliable. It must NOT be updated
+   from [mousemove]: while a pointer lock is held, browsers intermittently
+   dispatch move events reporting [buttons = 0] even though the button is
+   physically down. Clearing [click_left] on such a stray move made [is_pressed
+   `click_left] flicker off, which broke held-fire: full-auto weapons (read via
+   [is_pressed]) fired a few frames then stopped until the button was pressed
+   again. *)
+let update_mouse_buttons t e =
+  let buttons = Ev.Mouse.buttons e in
+  let set mask key t =
+    if buttons land mask <> 0 then
+      { t with keypressed = insert key t.keypressed }
+    else { t with keypressed = remove key t.keypressed }
+  in
+  t |> set 0x01 `click_left |> set 0x10 `click_right
+
+let update_mouse_pos t e =
   let fit, ox, oy = element_to_logical () in
   let x = (Ev.Mouse.offset_x e -. ox) /. fit in
   let y = (Ev.Mouse.offset_y e -. oy) /. fit in
-  let buttons = Ev.Mouse.buttons e in
-  let t =
-    if buttons land 0x01 <> 0 then
-      { t with keypressed = insert `click_left t.keypressed }
-    else { t with keypressed = remove `click_left t.keypressed }
-  in
-  let t =
-    if buttons land 0x10 <> 0 then
-      { t with keypressed = insert `click_right t.keypressed }
-    else { t with keypressed = remove `click_right t.keypressed }
-  in
   (* Movements accumulate over the mouse events of the current frame; the
      per-frame delta is reset by the run loop (see [reset_mouse_delta]). *)
   {
@@ -186,7 +192,11 @@ let update_mouse t e =
     mouse_dy = t.mouse_dy +. (Ev.Mouse.movement_y e /. fit);
   }
 
-let do_update_mouse e = current := update_mouse !current (Ev.as_type e)
+let do_update_mouse_move e = current := update_mouse_pos !current (Ev.as_type e)
+
+let do_update_mouse_button e =
+  let e = Ev.as_type e in
+  current := update_mouse_pos (update_mouse_buttons !current e) e
 
 let update_wheel t e =
   let delta = Ev.Wheel.delta_y e /. 4. in
@@ -216,15 +226,17 @@ let attach ~canvas =
   let _ =
     Ev.listen
       (Ev.Type.create (Jstr.of_string "mousemove"))
-      do_update_mouse target
+      do_update_mouse_move target
   in
   let _ =
-    Ev.listen (Ev.Type.create (Jstr.of_string "mouseup")) do_update_mouse target
+    Ev.listen
+      (Ev.Type.create (Jstr.of_string "mouseup"))
+      do_update_mouse_button target
   in
   let _ =
     Ev.listen
       (Ev.Type.create (Jstr.of_string "mousedown"))
-      do_update_mouse target
+      do_update_mouse_button target
   in
   let _ =
     Ev.listen (Ev.Type.create (Jstr.of_string "wheel")) do_update_wheel target
