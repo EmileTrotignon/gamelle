@@ -1,0 +1,5 @@
+(library
+ (name texture_scene)
+ (libraries gamelle)
+ (preprocess
+  (pps gamelle.ppx_ui)))

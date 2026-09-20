@@ -2,6 +2,7 @@ include Common
 module Geometry = Gamelle_common.Geometry
 module Bitmap = Bitmap
 module Svg = Svg
+module Texture = Texture
 module Font = Font_
 module Sound = Sound
 module Transform = Gamelle_common.Transform
@@ -46,6 +47,8 @@ let run state update =
   let running = ref true in
   while !running do
     Raylib.begin_drawing ();
+    (* Delete the GPU buffers of any textures collected since the last frame. *)
+    Texture.free_pending ();
     let prev_event = !(io.event) in
     Gamelle_common.io_reset_mutable_fields io;
     (* Real time spent on the previous frame; [get_frame_time] is 0 on the very

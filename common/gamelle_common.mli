@@ -18,13 +18,13 @@ type 'a abstract_io = 'a View.abstract_io = {
   clip_events : bool;
   z_index : int;
   color : Color.t;
-  window_size : (int * int) ref;
+  render_target : View.render_target;
   clean : (unit -> unit) list ref;
   draws : (int * (unit -> unit)) list ref;
   backend : 'a;
 }
 
-val make_io : ?previous:'a abstract_io -> 'a -> 'a abstract_io
+val make_io : 'a -> 'a abstract_io
 val io_reset_mutable_fields : 'a abstract_io -> unit
 val clean_io : io:'a abstract_io -> (unit -> unit) -> unit
 val clock : io:'a abstract_io -> float

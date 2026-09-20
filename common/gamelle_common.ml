@@ -19,7 +19,7 @@ type 'a abstract_io = 'a View.abstract_io = {
   clip_events : bool;
   z_index : int;
   color : Color.t;
-  window_size : (int * int) ref;
+  render_target : View.render_target;
   clean : (unit -> unit) list ref;
   draws : (int * (unit -> unit)) list ref;
   backend : 'a;
@@ -33,21 +33,17 @@ let make_io backend =
     clip_events = false;
     z_index = 0;
     color = Color.white;
-    window_size = ref (0, 0);
+    render_target = View.Onscreen { requested_size = None };
     clean = ref [];
     draws = ref [];
     backend;
   }
 
-let make_io ?previous backend =
-  let io = make_io backend in
-  match previous with
-  | None -> io
-  | Some previous -> { io with window_size = previous.window_size }
-
 let io_reset_mutable_fields io =
   io.event := Events_backend.default;
-  io.window_size := (0, 0);
+  (match io.render_target with
+  | View.Onscreen o -> o.requested_size <- None
+  | View.Texture _ -> ());
   io.clean := [];
   io.draws := []
 

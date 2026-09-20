@@ -7,7 +7,9 @@ let size ~io = W.size ~io
 let set_size ~io s =
   let w = s |> Size.width |> int_of_float
   and h = s |> Size.height |> int_of_float in
-  io.window_size := (w, h)
+  match io.render_target with
+  | Gamelle_common.View.Onscreen o -> o.requested_size <- Some (w, h)
+  | Gamelle_common.View.Texture _ -> () (* an offscreen texture has a fixed size; ignore *)
 
 let box ~io = Box.v Vec.zero (size ~io)
 let show_cursor = W.show_cursor

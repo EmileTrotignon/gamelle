@@ -30,9 +30,37 @@ module Gl = struct
   let clear = foreign "glClear" (int @-> returning void)
   let clear_stencil = foreign "glClearStencil" (int @-> returning void)
 
+  (* Renderbuffer / framebuffer-attachment entry points (GL 3.0 core, present in
+     the GL 3.3 context raylib created). They give an FBO a stencil buffer, which
+     raylib's [load_render_texture] omits (it attaches only depth); without it the
+     stencil clip path ([with_scissor]) has no stencil bits to test against and
+     falls back to its axis-aligned scissor (see [Texture.attach_stencil]). GLuint
+     ids fit a C [int]. *)
+  let gen_renderbuffers =
+    foreign "glGenRenderbuffers" (int @-> ptr int @-> returning void)
+
+  let delete_renderbuffers =
+    foreign "glDeleteRenderbuffers" (int @-> ptr int @-> returning void)
+
+  let bind_renderbuffer =
+    foreign "glBindRenderbuffer" (int @-> int @-> returning void)
+
+  let renderbuffer_storage =
+    foreign "glRenderbufferStorage"
+      (int @-> int @-> int @-> int @-> returning void)
+
+  let framebuffer_renderbuffer =
+    foreign "glFramebufferRenderbuffer"
+      (int @-> int @-> int @-> int @-> returning void)
+
   (* GLenum / bitfield constants. *)
   let stencil_test = 0x0B90
   let stencil_buffer_bit = 0x0400
+  let renderbuffer = 0x8D41
+  let framebuffer = 0x8D40
+  let depth_attachment = 0x8D00
+  let depth_stencil_attachment = 0x821A
+  let depth24_stencil8 = 0x88F0
   let always = 0x0207
   let equal = 0x0202
   let notequal = 0x0205
@@ -81,6 +109,18 @@ let to_raylib_color c =
 let project ~io p =
   let v = Transform.project io.view p in
   Vec.to_tuple v
+
+(* The SDF shaders (circle, arc, rounded rect, line) read the render height to
+   flip [gl_FragCoord] into the top-left coordinate space [project] produces.
+   When drawing into an offscreen texture (see [Texture]), the active
+   framebuffer is the texture, so that height must be the texture's, not the
+   window's: [Texture.make] sets this override for the duration of the render. *)
+let render_height_override = ref None
+
+let render_height () =
+  match !render_height_override with
+  | Some h -> h
+  | None -> Raylib.get_render_height ()
 
 (* --- Polygon clipping ---
 

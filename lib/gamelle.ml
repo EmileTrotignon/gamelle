@@ -15,6 +15,7 @@ module Input = Event
 module Input_snapshot = Gamelle_common.Input_snapshot
 module Bitmap = Bitmap_
 module Svg = Svg_
+module Texture = Texture_
 include Draw_geometry
 
 let dt = Gamelle_backend.dt

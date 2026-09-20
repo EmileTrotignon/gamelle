@@ -1,0 +1,9 @@
+(lang dune 3.7)
+
+(name texture_scene)
+
+(package
+  (name texture_scene)
+  (synopsis "texture_scene")
+  (depends
+    gamelle))

@@ -21,6 +21,30 @@ module Svg : sig
   val load : w:int -> h:int -> string -> t
 end
 
+module Texture : sig
+  type t
+
+  (* [create ~w ~h] allocates a fresh [w]x[h] offscreen buffer, cleared to
+     transparent. Requires the graphics context to be live (i.e. called from
+     within the run loop, not before [run]). *)
+  val create : w:int -> h:int -> t
+
+  (* [draw_on t draw] renders [draw] onto the buffer [t], on top of whatever it
+     already holds (successive calls accumulate). [draw] receives its own [io]
+     whose drawing targets the buffer; the internal z-ordering of that call's
+     draws is resolved (collapsed) as it is composited. *)
+  val draw_on : t -> (io:io -> unit) -> unit
+
+  (* [wipe t] resets the buffer [t] to empty (fully transparent). Drawing composites
+     over existing contents and so can never clear them, hence a dedicated op. *)
+  val wipe : t -> unit
+
+  (* Draw the buffer with its top-left corner at [point], honouring the current
+     view transform (translation, rotation, scale) and clip region — like a
+     [Bitmap]. *)
+  val draw : io:io -> t -> point -> unit
+end
+
 module Font : sig
   type t
 

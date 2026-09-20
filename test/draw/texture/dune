@@ -1,0 +1,43 @@
+(env
+ (dev
+  (flags
+   (:standard -warn-error -A))))
+
+(executable
+ (public_name texture_scene)
+ (name texture_scene_bin)
+ (modules texture_scene_bin)
+ (libraries texture_scene gamelle.raylib))
+
+(rule
+ (target texture_scene_bin.ml)
+ (action
+  (with-stdout-to
+   texture_scene_bin.ml
+   (run echo "include Texture_scene"))))
+
+(executable
+ (name texture_scene_js)
+ (modules texture_scene_js)
+ (modes js)
+ (js_of_ocaml)
+ (libraries texture_scene gamelle.jsoo))
+
+(rule
+ (target texture_scene_js.ml)
+ (action
+  (with-stdout-to
+   texture_scene_js.ml
+   (run echo "include Texture_scene"))))
+
+(rule
+ (target texture_scene.html)
+ (deps texture_scene.template.html texture_scene_js.bc.js)
+ (action
+  (with-stdout-to
+   texture_scene.html
+   (run
+    %{bin:gamelle}
+    html
+    --template=texture_scene.template.html
+    --script=texture_scene_js.bc.js))))

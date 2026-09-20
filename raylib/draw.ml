@@ -404,7 +404,7 @@ let circle_uniforms s cx cy radius color =
   let cb = float (Raylib.Color.b color) /. 255.0 in
   let ca = float (Raylib.Color.a color) /. 255.0 in
   set_vec4 s.shader s.loc_color cr cg cb ca;
-  set_float s.shader s.loc_screen_height (float (Raylib.get_render_height ()));
+  set_float s.shader s.loc_screen_height (float (render_height ()));
   let pad = 2.0 in
   let qx = int_of_float (cx -. radius -. pad) in
   let qy = int_of_float (cy -. radius -. pad) in
@@ -555,7 +555,7 @@ let render_arc ~io ?color shader_ref fs arc =
   let cb = float (Raylib.Color.b color) /. 255.0 in
   let ca = float (Raylib.Color.a color) /. 255.0 in
   set_vec4 s.a_shader s.a_color cr cg cb ca;
-  set_float s.a_shader s.a_screen_height (float (Raylib.get_render_height ()));
+  set_float s.a_shader s.a_screen_height (float (render_height ()));
   let pad = 2.0 in
   let qx = int_of_float (cx -. radius -. pad) in
   let qy = int_of_float (cy -. radius -. pad) in
@@ -681,7 +681,7 @@ let render_rounded_rect ~io ?color shader_ref fs ~radius box =
   let cb = float (Raylib.Color.b color) /. 255.0 in
   let ca = float (Raylib.Color.a color) /. 255.0 in
   set_vec4 s.ro_shader s.ro_color cr cg cb ca;
-  set_float s.ro_shader s.ro_screen_height (float (Raylib.get_render_height ()));
+  set_float s.ro_shader s.ro_screen_height (float (render_height ()));
   (* A square covering the box under any rotation: centre ± its half-diagonal. *)
   let half_diag = sqrt ((hw *. hw) +. (hh *. hh)) in
   let pad = 2.0 in
@@ -766,7 +766,7 @@ let aa_segment color (x0, y0) (x1, y1) =
   let cb = float (Raylib.Color.b color) /. 255.0 in
   let ca = float (Raylib.Color.a color) /. 255.0 in
   set_vec4 s.l_shader s.l_color cr cg cb ca;
-  set_float s.l_shader s.l_screen_height (float (Raylib.get_render_height ()));
+  set_float s.l_shader s.l_screen_height (float (render_height ()));
   let pad = half_width +. 2.0 in
   let qx = int_of_float (Float.min x0 x1 -. pad) in
   let qy = int_of_float (Float.min y0 y1 -. pad) in

@@ -833,6 +833,59 @@ module Svg : sig
   val load : w:int -> h:int -> string -> t
 end
 
+module Texture : sig
+  (** Off-screen textures: draw into a buffer, then reuse it.
+
+      A texture is a fixed-size off-screen buffer. Create an (empty, transparent)
+      one with {!create}, draw onto it with {!draw_on_texture}, and blit it to the
+      screen with {!draw_on_screen}.
+  *)
+
+  type t
+  (** The type of off-screen textures. *)
+
+  val create : Size.t -> t
+  (** [create size] is a new, empty (fully transparent) texture of dimensions
+      [size]. Its backing buffer is allocated on first use, so [create] may be
+      called at top level, before {!run}. *)
+
+  val draw_on_texture : t -> (io:io -> unit) -> unit
+  (** [draw_on_texture t draw] runs [draw] to render onto [t], on top of whatever
+      it already holds. Must be called from within the game loop (it allocates the
+      backing buffer on first use, which needs the graphics context to be live).
+
+      {[
+      let badge = Texture.create (Size.v 100. 100.)
+
+      (* once, inside the loop: *)
+      Texture.draw_on_texture badge (fun ~io ->
+          Circle.fill ~io ~color:Color.red (Circle.v (Point.v 50. 50.) 40.);
+          Text.draw ~io ~color:Color.white ~at:(Point.v 30. 42.) "!")
+      ]} *)
+
+  val wipe : t -> unit
+  (** [wipe t] resets [t] to empty (fully transparent), discarding everything
+      drawn onto it. Since {!draw_on_texture} composites over the existing
+      contents, it can only add coverage, never remove it — so clearing a texture
+      requires this dedicated operation. *)
+
+  val draw_on_screen : io:io -> at:Point.t -> t -> unit
+  (** [draw_on_screen ~io ~at t] blits the texture [t] with its top-left corner at
+      [at], honouring the current {!View} transform (translation, rotation, scale)
+      and clip region. A texture never drawn onto is empty, so nothing appears. *)
+
+  (** {2 Accessors} *)
+
+  val width : t -> int
+  (** [width t] is the width in pixels of the texture [t]. *)
+
+  val height : t -> int
+  (** [height t] is the height in pixels of the texture [t]. *)
+
+  val size : t -> Size.t
+  (** [size t] is the size of the texture [t]. *)
+end
+
 val draw : io:io -> at:Point.t -> Bitmap.t -> unit
 (** [draw ~io ~at bitmap] draws the image [bitmap] at position [at] on the
     screen. Same as {!Bitmap.draw}.

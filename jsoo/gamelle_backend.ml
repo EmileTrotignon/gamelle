@@ -6,6 +6,7 @@ module Text = Text
 module Color = Color
 module Bitmap = Bitmap
 module Svg = Svg
+module Texture = Texture
 module Font = Font_
 module Sound = Sound
 module Transform = Gamelle_common.Transform
@@ -45,9 +46,10 @@ module Window = struct
      element's real on-screen resolution so rendering stays sharp. Runs every
      frame; the canvas attributes are only written on change (writing them
      resets the canvas). *)
-  let set_size ~io =
-    let s = !(io.window_size) in
-    if s <> (0, 0) then windowed_size := s;
+  let sync_canvas ~io =
+    (match io.render_target with
+    | Gamelle_common.View.Onscreen { requested_size = Some s } -> windowed_size := s
+    | _ -> ());
     let canvas = io.backend.canvas in
     let el = Canvas.to_el canvas in
     let dpr = Brr.Window.device_pixel_ratio G.window in
@@ -100,9 +102,14 @@ module Window = struct
       Jsoo.device_scale := (float bw /. float lw, float bh /. float lh)
     end
 
-  let size ~io:_ =
-    let w, h = !Jsoo.logical_size in
-    Size.v (float w) (float h)
+  (* An offscreen [Texture] render reports its own fixed size; an onscreen [io]
+     reports the canvas' logical size. *)
+  let size ~io =
+    match io.render_target with
+    | Gamelle_common.View.Texture { width; height } -> Size.v (float width) (float height)
+    | Gamelle_common.View.Onscreen _ ->
+        let w, h = !Jsoo.logical_size in
+        Size.v (float w) (float h)
 
   let capture_mouse ~io:_ status = Events_js.set_capture status
   let is_mouse_captured ~io:_ = Events_js.is_locked ()
@@ -128,7 +135,7 @@ end
 
 let finalize_frame ~io =
   Sound.end_frame ~io;
-  Window.set_size ~io;
+  Window.sync_canvas ~io;
   let ctx = io.backend.ctx in
   let canvas = io.backend.canvas in
   C.reset_transform ctx;
@@ -148,6 +155,9 @@ let run ~canvas state update =
 
   let ctx = C.get_context canvas in
   let audio = Audio.Context.create () in
+  (* Share the audio context with offscreen texture renders, which build their
+     own backend io (see [Texture.draw_on]). *)
+  Texture.audio_ctx := Some audio;
 
   let backend =
     { canvas; ctx; audio; font = Font.default; font_size = Font.default_size }

@@ -1,3 +1,15 @@
+(* What an [io] renders into, fixed when the [io] is created. The two cases are
+   kept apart so an offscreen buffer can never carry a window-resize request, and
+   so querying an [io]'s size is a direct lookup rather than a guess. *)
+type render_target =
+  | Onscreen of { mutable requested_size : (int * int) option }
+      (* The game window / browser canvas. [requested_size] is a resize the game
+         asked for this frame via [Window.set_size]; the backend applies and
+         clears it each frame. [None] means no resize was requested. *)
+  | Texture of { width : int; height : int }
+      (* A fixed-size offscreen buffer: a [Texture.t] being rendered. It cannot
+         be resized, so it has no [requested_size]. *)
+
 type 'a abstract_io = {
   view : Transform.t;
   event : Events_backend.t ref;
@@ -12,7 +24,7 @@ type 'a abstract_io = {
   clip_events : bool;
   z_index : int;
   color : Color_.t;
-  window_size : (int * int) ref;
+  render_target : render_target;
   clean : (unit -> unit) list ref;
   draws : (int * (unit -> unit)) list ref;
   backend : 'a;
